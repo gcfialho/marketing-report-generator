@@ -24,6 +24,7 @@ STYLE = {
     "axes.labelcolor": MUTED,
     "xtick.color": MUTED,
     "ytick.color": TEXT,
+    "ytick.major.size": 0,
     "axes.spines.top": False,
     "axes.spines.right": False,
     "figure.dpi": 150,
@@ -71,14 +72,18 @@ def rate_chart(table: pd.DataFrame, title: str, overall_rate: float, path: Path)
         ax.errorbar(
             rates, range(len(data)), xerr=err, fmt="none", ecolor=TEXT, elinewidth=1, capsize=3
         )
-        ax.axvline(overall_rate, color=REFERENCE, linestyle="--", linewidth=1)
-        ax.text(
-            overall_rate, len(data) - 0.4, f" overall {overall_rate:.1%}", color=MUTED, fontsize=8
+        ax.axvline(
+            overall_rate,
+            color=REFERENCE,
+            linestyle="--",
+            linewidth=1,
+            label=f"Overall rate ({overall_rate:.1%})",
         )
+        ax.legend(loc="lower right", frameon=False, fontsize=8, labelcolor=MUTED)
         ax.xaxis.set_major_formatter(PercentFormatter(1.0, decimals=0))
         ax.grid(axis="x", color=GRID, linewidth=0.6)
         ax.set_axisbelow(True)
-        ax.set_xlabel("Trial registration rate (bars: 95% Wilson CI)")
+        ax.set_xlabel("Trial registration rate (whiskers: 95% Wilson CI)")
         ax.set_title(title, loc="left", color=TEXT, fontsize=11)
         fig.savefig(path)
     return path
