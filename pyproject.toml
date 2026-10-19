@@ -1,0 +1,76 @@
+[project]
+name = "marketing-report"
+version = "2.0.0"
+description = "Marketing funnel analytics pipeline: validate, clean, analyse and report on prospect-level campaign data."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Guilherme Fialho" }]
+requires-python = ">=3.12"
+keywords = ["marketing-analytics", "funnel-analysis", "pandas", "statsmodels", "reporting"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+dependencies = [
+    "jinja2>=3.1",
+    "matplotlib>=3.8",
+    "numpy>=1.26",
+    "openpyxl>=3.1",
+    "pandas>=2.2",
+    "scipy>=1.12",
+    "statsmodels>=0.14.2",
+]
+
+[project.optional-dependencies]
+# PDF export is optional: markdown-pdf pulls in PyMuPDF, which is a large dependency.
+pdf = ["markdown-pdf>=1.3"]
+
+[project.urls]
+Repository = "https://github.com/gcfialho/marketing-report-generator"
+
+[project.scripts]
+marketing-report = "marketing_report.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/marketing_report"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "PD",  # pandas-vet
+    "NPY", # numpy-specific rules
+    "RUF", # ruff-specific rules
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+filterwarnings = [
+    "error::FutureWarning",
+]

@@ -1,0 +1,150 @@
+# Marketing Funnel Report: {{ company }}
+
+- **Objective:** {{ objective }}
+- **Data source:** `{{ source_name }}`
+{% if a.date_range %}
+- **Opt-in period covered:** {{ a.date_range[0].date() }} to {{ a.date_range[1].date() }}
+{% endif %}
+- **Generated:** {{ generated_at }}
+- **Significance level:** α = {{ a.alpha }}
+
+## Executive summary
+
+{% for finding in a.findings %}
+- {{ finding }}
+{% endfor %}
+
+## 1. Funnel
+
+`Prospect Status` records the furthest stage each prospect reached:
+Responded → (No Show | Attended) → Registered. Stages are therefore cumulative:
+every registered prospect also attended a demo.
+
+| Status | Prospects | Share |
+|---|---:|---:|
+{% for status, count in a.funnel.status_counts.items() %}
+| {{ status }} | {{ "{:,}".format(count) }} | {{ (count / a.funnel.total) | pct }} |
+{% endfor %}
+| **Total** | **{{ "{:,}".format(a.funnel.total) }}** | 100.0% |
+
+| Funnel step | Converted | Base | Rate |
+|---|---:|---:|---:|
+{% for step in a.funnel.steps %}
+| {{ step.name }} | {{ "{:,}".format(step.numerator) }} | {{ "{:,}".format(step.denominator) }} | {{ step.rate | pct }} |
+{% endfor %}
+| Overall (registered / all prospects) | {{ "{:,}".format(a.funnel.registered) }} | {{ "{:,}".format(a.funnel.total) }} | {{ a.funnel.overall_rate | pct }} |
+
+{{ a.funnel.pending }} prospects are still at *Responded* (no demo outcome recorded) and are
+excluded from the attendance-rate base.
+
+![Funnel]({{ charts.funnel }})
+
+## 2. Channel performance
+
+{{ segment_table(a.segments.channel) }}
+
+![Channel conversion]({{ charts.channel }})
+
+{{ test_line(a.segments.channel.test) }}
+
+## 3. Audience and geography
+
+### Job category
+
+{{ segment_table(a.segments.job_category) }}
+
+![Job category conversion]({{ charts.job_category }})
+
+{{ test_line(a.segments.job_category.test) }}
+
+### Region
+
+{{ segment_table(a.segments.region) }}
+
+{{ test_line(a.segments.region.test) }}
+
+### Country
+
+{{ segment_table(a.segments.country) }}
+
+{{ test_line(a.segments.country.test) }}
+
+## 4. Multivariable logistic regression
+
+{% if a.model %}
+Model: `{{ a.model.formula }}` on {{ "{:,}".format(a.model.n_obs) }} prospects
+({{ a.model.n_events }} registrations). Odds ratios are relative to the reference level of each
+variable ({% for col, ref in a.model.reference_levels.items() %}{{ col }} = {{ ref }}{% if not loop.last %}; {% endif %}{% endfor %}),
+holding the other variables fixed.
+
+| Term | Odds ratio | 95% CI | p-value |
+|---|---:|---:|---:|
+{% for t in a.model.terms %}
+| {{ t.term }} | {{ "%.2f" | format(t.odds_ratio) }} | {{ "%.2f" | format(t.ci_low) }} to {{ "%.2f" | format(t.ci_high) }} | {{ t.p_value | pvalue }} |
+{% endfor %}
+
+McFadden pseudo-R² = {{ "%.3f" | format(a.model.pseudo_r2) }}; likelihood-ratio test against the
+intercept-only model: p = {{ a.model.llr_p_value | pvalue }}.
+{% if a.model.excluded_levels %}
+
+Excluded from the model because they are too small or have no variation in the outcome
+(maximum likelihood cannot estimate them): {% for col, levels in a.model.excluded_levels.items() %}{{ col }}: {{ levels | join(", ") }}{% if not loop.last %}; {% endif %}{% endfor %}.
+These levels still appear in the descriptive tables above.
+{% endif %}
+{% for w in a.model.warnings %}
+
+> Estimation warning: {{ w }}
+{% endfor %}
+{% else %}
+The model could not be estimated (not enough variation after filtering sparse levels).
+{% endif %}
+
+## 5. Channel actions and volume-mix scenario
+
+A channel is marked *Increase* or *Decrease* only when its registration rate differs from
+the other channels at Holm-adjusted p < {{ a.alpha }} (Fisher's exact test); otherwise *Hold*.
+The scenario multiplies each channel's share of prospect volume by
+{{ multipliers.Increase }} / {{ multipliers.Decrease }} / {{ multipliers.Hold }} and renormalises to 100%.
+The dataset contains **no spend or cost data**, so these are shares of prospect volume, not of
+budget, and no ROI or CAC figures are implied.
+
+| Channel | Action | Current volume share | Scenario share | Rationale |
+|---|---|---:|---:|---|
+{% for r in a.recommendations %}
+| {{ r.channel }} | {{ r.action }} | {{ r.current_share | pct }} | {{ r.scenario_share | pct }} | {{ r.rationale }} |
+{% endfor %}
+
+## 6. Data quality
+
+- Input rows: {{ "{:,}".format(v.n_rows) }} across {{ v.n_columns }} columns; cell completeness {{ v.completeness_pct }}%.
+- Duplicate prospect IDs in the input: {{ v.duplicate_prospect_ids }}.
+{% if v.missing_by_column %}
+- Missing values by column: {% for col, n in v.missing_by_column.items() %}{{ col }} ({{ n }}){% if not loop.last %}, {% endif %}{% endfor %}.
+{% endif %}
+{% if v.missing_optional %}
+- Optional columns not present: {{ v.missing_optional | join(", ") }}.
+{% endif %}
+- Rows after cleaning: {{ "{:,}".format(c.rows_out) }} (removed: {{ c.empty_rows_removed }} empty, {{ c.invalid_status_removed }} invalid status, {{ c.duplicates_removed }} duplicates).
+{% if c.unmapped_countries %}
+- Countries without an ISO-3 mapping (kept as-is): {{ c.unmapped_countries | join(", ") }}.
+{% endif %}
+
+Cleaning steps:
+{% for step in c.steps %}
+{{ loop.index }}. {{ step }}
+{% endfor %}
+
+## 7. Methodology and limitations
+
+- Rates use 95% Wilson score intervals, which remain valid for small segments and rates near 0%.
+- Segment differences are tested with a chi-square test of independence on the
+  segment × registered table, with Cramér's V as effect size. Results are flagged when expected
+  counts are too small for the chi-square approximation.
+- Per-segment comparisons use Fisher's exact test (segment vs. all others) with Holm correction
+  for multiple comparisons.
+- The logistic regression uses one-hot (treatment) coding; odds ratios are associations, not
+  causal effects. Prospect source is a single-touch attribution field and campaigns were not
+  randomised.
+- No cost data is available, so cost-efficiency (CPA, ROAS) cannot be estimated.
+- Job categories and seniority are derived from free-text job titles with keyword rules and will
+  misclassify some titles.
