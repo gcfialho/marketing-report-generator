@@ -52,7 +52,8 @@ The per-channel funnel table in the report shows where the gap comes from. At 5,
 Referral: attendance 42.1% (35.0% to 49.6%), registration after attending 63.9% (52.4% to 74.0%).
 Advertisement: attendance 25.5% (24.1% to 26.9%), registration after attending 53.5% (50.3% to
 56.6%). Most of Referral's advantage is at demo attendance (the generator uses 40% against 26%), so
-a reminder or scheduling change for demo invitees is a cheaper first test than moving volume.
+demo attendance is the step to experiment on first. The data has no cost figures, so it cannot say
+which change is cheaper.
 
 ## 3. How often each rule gets it right
 

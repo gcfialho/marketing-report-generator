@@ -363,8 +363,8 @@ The per-channel funnel table in the report shows where the gap comes from. At
 {large.n:,} prospects, Referral: {steps_line(large, FOCUS)}. Advertisement:
 {steps_line(large, "Advertisement")}. Most of Referral's advantage is at demo attendance (the
 generator uses {synthetic.P_ATTEND[FOCUS]:.0%} against {synthetic.P_ATTEND["Advertisement"]:.0%}),
-so a reminder or scheduling change for demo invitees is a cheaper first test than moving
-volume.
+so demo attendance is the step to experiment on first. The data has no cost figures, so it
+cannot say which change is cheaper.
 
 ## 3. How often each rule gets it right
 
