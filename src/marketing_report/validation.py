@@ -63,7 +63,7 @@ def validate(df: pd.DataFrame) -> ValidationReport:
     Validation never mutates the frame; cleaning decisions belong to the cleaning step.
     """
     columns = set(df.columns)
-    missing_by_column = {c: int(n) for c, n in df.isna().sum().items() if n > 0}
+    missing_by_column = {str(c): int(n) for c, n in df.isna().sum().items() if n > 0}
     total_cells = df.size
     completeness = 100.0 * (1 - sum(missing_by_column.values()) / total_cells) if total_cells else 0
 

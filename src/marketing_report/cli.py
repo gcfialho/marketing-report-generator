@@ -9,6 +9,7 @@ import sys
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import overload
 
 from marketing_report import __version__, synthetic
 from marketing_report.pipeline import DEFAULT_COMPANY, DEFAULT_OBJECTIVE, PipelineConfig, run
@@ -18,6 +19,10 @@ from marketing_report.validation import SchemaError
 logger = logging.getLogger("marketing_report")
 
 
+@overload
+def _env(name: str) -> str | None: ...
+@overload
+def _env(name: str, default: str) -> str: ...
 def _env(name: str, default: str | None = None) -> str | None:
     return os.environ.get(f"MARKETING_REPORT_{name}", default)
 
