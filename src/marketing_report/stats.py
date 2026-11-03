@@ -199,10 +199,20 @@ def logistic_regression(
                 design[f"{column}: {level}"] = (data[column].astype(str) == level).astype(float)
     design = sm.add_constant(design, has_constant="add")
 
+    # Perfectly collinear predictors (e.g. one segment fully determined by another) make the
+    # Hessian singular; whether the fit then crashes depends on the BLAS build. Skip instead.
+    if np.linalg.matrix_rank(design.to_numpy()) < design.shape[1]:
+        logger.warning("Logistic regression skipped: predictors are perfectly collinear")
+        return None
+
     with warnings.catch_warnings(record=True) as records:
         warnings.simplefilter("always", ConvergenceWarning)
         warnings.simplefilter("always", PerfectSeparationWarning)
-        fit = sm.Logit(data[target].astype(float), design).fit(disp=False, maxiter=200)
+        try:
+            fit = sm.Logit(data[target].astype(float), design).fit(disp=False, maxiter=200)
+        except np.linalg.LinAlgError:
+            logger.warning("Logistic regression skipped: singular Hessian")
+            return None
     caught = [str(r.message) for r in records]
 
     conf = fit.conf_int()

@@ -109,7 +109,9 @@ def test_summary_verdict_uses_adjusted_p():
                     schema.STATUS: "Registered" if i < conv else "No Show",
                     schema.SOURCE: source,
                     schema.COUNTRY: ("USA", "GBR", "BRA", "JPN")[i % 4],
-                    schema.JOB_TITLE: ("Data Analyst", "IT Manager")[i % 2],
+                    # i % 3 keeps job title independent of country (i % 4), so the model is
+                    # identifiable; collinear predictors are covered in test_stats.
+                    schema.JOB_TITLE: ("Data Analyst", "IT Manager", "Data Engineer")[i % 3],
                 }
             )
     result = analyze(transform(pd.DataFrame(rows)))

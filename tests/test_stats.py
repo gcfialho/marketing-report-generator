@@ -141,3 +141,16 @@ def test_detectable_rate_range_shrinks_with_sample_size():
     # With 10 prospects not even a true rate of 0% would be detectably below 12%.
     assert detectable_rate_range(0.12, 10, 990)[0] == 0.0
     assert math.isnan(detectable_rate_range(0.12, 0, 100)[0])
+
+
+def test_logistic_regression_skips_collinear_predictors():
+    # "segment" is fully determined by "group", so the design matrix is rank deficient.
+    n = 200
+    df = pd.DataFrame(
+        {
+            "y": [i % 3 == 0 for i in range(n)],
+            "group": [("a", "b", "c", "d")[i % 4] for i in range(n)],
+            "segment": [("x", "y")[i % 2] for i in range(n)],
+        }
+    )
+    assert logistic_regression(df, "y", ["group", "segment"]) is None
