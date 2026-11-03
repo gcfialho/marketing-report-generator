@@ -5,12 +5,24 @@ from __future__ import annotations
 import logging
 import warnings
 from dataclasses import dataclass, field
+from typing import SupportsFloat
 
 import numpy as np
 import pandas as pd
 from scipy import stats as sps
 
 logger = logging.getLogger(__name__)
+
+
+def as_float(value: object) -> float:
+    """A numeric table cell as a Python float.
+
+    pandas types single-cell access (``row["rate"]``, ``df.loc[i, col]``) as any possible
+    scalar; this narrows it, and fails loudly if the cell is not numeric.
+    """
+    if not isinstance(value, SupportsFloat):
+        raise TypeError(f"Expected a numeric value, got {value!r}")
+    return float(value)
 
 
 def wilson_interval(successes: int, n: int, confidence: float = 0.95) -> tuple[float, float]:
@@ -33,7 +45,9 @@ def wilson_interval(successes: int, n: int, confidence: float = 0.95) -> tuple[f
 
 def rate_table(df: pd.DataFrame, by: str, target: str, confidence: float = 0.95) -> pd.DataFrame:
     """Per-segment volume, conversions, rate and Wilson CI (rates as fractions)."""
-    grouped = df.groupby(by, dropna=False)[target].agg(prospects="count", conversions="sum")
+    grouped = df.groupby(by, dropna=False).agg(
+        prospects=(target, "count"), conversions=(target, "sum")
+    )
     grouped["conversions"] = grouped["conversions"].astype(int)
     grouped["rate"] = grouped["conversions"] / grouped["prospects"]
     bounds = [
