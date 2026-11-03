@@ -72,6 +72,35 @@ CAMPAIGN_THEMES = ("spring", "summer", "autumn", "winter", "year_end", "launch",
 CAMPAIGN_KINDS = ("demo_days", "trial_push", "roadshow", "product_tour", "case_study_series")
 
 
+def true_registration_rates() -> dict[str, float]:
+    """Population registration rate per prospect source implied by the generator.
+
+    P(registered | source) = P(not pending) * P(attend | source)
+    * sum over job kinds of P(kind) * P(register | attended, source, kind).
+    Because the data is generated, these are the true values the report's estimates and
+    intervals can be checked against. Injected duplicates are removed by cleaning and do
+    not change them.
+    """
+    mix = np.array(list(JOB_MIX.values()), dtype=float)
+    mix /= mix.sum()
+    lifts = np.array([JOB_REGISTER_LIFT[k] for k in JOB_MIX])
+    return {
+        source: float(
+            (1 - P_PENDING)
+            * P_ATTEND[source]
+            * np.sum(mix * np.minimum(1.0, P_REGISTER[source] * lifts))
+        )
+        for source in SOURCES
+    }
+
+
+def true_rest_rate(source: str) -> float:
+    """True registration rate of all prospects *not* from ``source`` (volume-weighted)."""
+    rates = true_registration_rates()
+    weights = {s: w for s, w in SOURCES.items() if s != source}
+    return sum(rates[s] * w for s, w in weights.items()) / sum(weights.values())
+
+
 def _choice(rng: np.random.Generator, weights: dict[str, float], size: int) -> np.ndarray:
     keys = list(weights)
     probs = np.array([weights[k] for k in keys], dtype=float)
