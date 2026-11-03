@@ -9,7 +9,7 @@ from marketing_report.pipeline import PipelineConfig, run
 EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "synthetic"
 
 
-def test_synthetic_example_is_up_to_date(tmp_path):
+def test_synthetic_example_is_up_to_date(tmp_path: Path) -> None:
     checked_in = (EXAMPLE / "example-co-marketing-report.md").read_text(encoding="utf-8")
     stamp = re.search(r"\*\*Generated:\*\* (.+)", checked_in)
     assert stamp, "example report has no Generated line"
@@ -24,7 +24,7 @@ def test_synthetic_example_is_up_to_date(tmp_path):
     )
 
 
-def test_channel_decision_example_builds(tmp_path):
+def test_channel_decision_example_builds(tmp_path: Path) -> None:
     import subprocess
     import sys
 

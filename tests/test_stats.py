@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from marketing_report.stats import (
+    as_float,
     chi_square_independence,
     holm_adjust,
     logistic_regression,
@@ -14,25 +15,25 @@ from marketing_report.stats import (
 )
 
 
-def test_wilson_interval_known_values():
+def test_wilson_interval_known_values() -> None:
     # Reference values from the closed-form Wilson score interval (z = 1.959964).
     low, high = wilson_interval(10, 40)
     assert low == pytest.approx(0.1419, abs=1e-4)
     assert high == pytest.approx(0.4019, abs=1e-4)
 
 
-def test_wilson_interval_zero_successes_has_positive_upper_bound():
+def test_wilson_interval_zero_successes_has_positive_upper_bound() -> None:
     # 0 of 14 is not evidence of a 0% rate: the upper bound is about 21.5%.
     low, high = wilson_interval(0, 14)
     assert low == 0.0
     assert high == pytest.approx(0.2153, abs=1e-4)
 
 
-def test_wilson_interval_empty_sample_is_nan():
+def test_wilson_interval_empty_sample_is_nan() -> None:
     assert all(math.isnan(x) for x in wilson_interval(0, 0))
 
 
-def test_rate_table_columns_and_order():
+def test_rate_table_columns_and_order() -> None:
     df = pd.DataFrame({"seg": ["a"] * 10 + ["b"] * 10, "y": [1] * 5 + [0] * 5 + [1] * 1 + [0] * 9})
     table = rate_table(df, "seg", "y")
     assert table.index.tolist() == ["a", "b"]
@@ -42,7 +43,7 @@ def test_rate_table_columns_and_order():
     assert (table["rate"] <= table["ci_high"]).all()
 
 
-def test_chi_square_uses_binary_outcome_and_flags_small_counts():
+def test_chi_square_uses_binary_outcome_and_flags_small_counts() -> None:
     df = pd.DataFrame({"seg": ["a"] * 6 + ["b"] * 6, "y": [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1]})
     test = chi_square_independence(df, "seg", "y")
     assert test.dof == 1  # 2 segments x 2 outcomes
@@ -51,22 +52,22 @@ def test_chi_square_uses_binary_outcome_and_flags_small_counts():
     assert 0 <= test.cramers_v <= 1
 
 
-def test_holm_adjust_matches_manual_computation():
+def test_holm_adjust_matches_manual_computation() -> None:
     adjusted = holm_adjust([0.01, 0.04, 0.03])
     # sorted: 0.01*3=0.03, 0.03*2=0.06, 0.04*1=0.04 -> monotone max -> 0.06
     assert adjusted == pytest.approx([0.03, 0.06, 0.06])
 
 
-def test_segment_vs_rest_detects_clear_difference():
+def test_segment_vs_rest_detects_clear_difference() -> None:
     df = pd.DataFrame(
         {"seg": ["hi"] * 100 + ["lo"] * 100, "y": [1] * 60 + [0] * 40 + [1] * 10 + [0] * 90}
     )
     result = segment_vs_rest(df, "seg", "y")
-    assert result.loc["hi", "p_adjusted"] < 0.001
-    assert result.loc["hi", "rate"] > result.loc["hi", "rest_rate"]
+    assert as_float(result.loc["hi", "p_adjusted"]) < 0.001
+    assert as_float(result.loc["hi", "rate"]) > as_float(result.loc["hi", "rest_rate"])
 
 
-def test_logistic_regression_recovers_direction_and_excludes_sparse_levels():
+def test_logistic_regression_recovers_direction_and_excludes_sparse_levels() -> None:
     rng = np.random.default_rng(0)
     n = 2000
     channel = rng.choice(["Ads", "Referral"], size=n, p=[0.8, 0.2])
@@ -88,7 +89,7 @@ def test_logistic_regression_recovers_direction_and_excludes_sparse_levels():
     assert result.n_obs == n
 
 
-def test_monte_carlo_p_matches_asymptotic_p_on_large_table():
+def test_monte_carlo_p_matches_asymptotic_p_on_large_table() -> None:
     from scipy import stats as sps
 
     from marketing_report.stats import monte_carlo_chi_square_p
@@ -100,7 +101,7 @@ def test_monte_carlo_p_matches_asymptotic_p_on_large_table():
     assert monte_carlo_chi_square_p(table) == monte_carlo_chi_square_p(table)
 
 
-def test_small_expected_counts_switch_to_monte_carlo_p():
+def test_small_expected_counts_switch_to_monte_carlo_p() -> None:
     # 4 x 2 table with a tiny zero-conversion segment: chi-square approximation fails.
     df = pd.DataFrame(
         {
@@ -115,14 +116,14 @@ def test_small_expected_counts_switch_to_monte_carlo_p():
     assert 0 < test.monte_carlo_p_value <= 1
 
 
-def test_two_by_two_with_small_counts_uses_fisher():
+def test_two_by_two_with_small_counts_uses_fisher() -> None:
     df = pd.DataFrame({"seg": ["a"] * 6 + ["b"] * 6, "y": [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1]})
     test = chi_square_independence(df, "seg", "y")
     assert test.monte_carlo_p_value is None
     assert test.p_value_used == test.fisher_p_value
 
 
-def test_detectable_rate_range_matches_textbook_sample_size():
+def test_detectable_rate_range_matches_textbook_sample_size() -> None:
     from marketing_report.stats import detectable_rate_range
 
     # Cohen's h for 10% vs 15% is 0.1519; at alpha = 0.05 and 80% power the classic
@@ -132,7 +133,7 @@ def test_detectable_rate_range_matches_textbook_sample_size():
     assert low < 0.10 < high
 
 
-def test_detectable_rate_range_shrinks_with_sample_size():
+def test_detectable_rate_range_shrinks_with_sample_size() -> None:
     from marketing_report.stats import detectable_rate_range
 
     small = detectable_rate_range(0.12, 33, 967)
@@ -143,7 +144,7 @@ def test_detectable_rate_range_shrinks_with_sample_size():
     assert math.isnan(detectable_rate_range(0.12, 0, 100)[0])
 
 
-def test_logistic_regression_skips_collinear_predictors():
+def test_logistic_regression_skips_collinear_predictors() -> None:
     # "segment" is fully determined by "group", so the design matrix is rank deficient.
     n = 200
     df = pd.DataFrame(

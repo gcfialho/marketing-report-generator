@@ -41,7 +41,7 @@ from marketing_report.transform import (
         ("Data & Analytics Senior Architect", "Practitioner"),
     ],
 )
-def test_categorize_job_title(title, expected):
+def test_categorize_job_title(title: str, expected: str) -> None:
     assert categorize_job_title(title) == expected
 
 
@@ -58,11 +58,11 @@ def test_categorize_job_title(title, expected):
         ("Product Owner", "Mid-Level"),
     ],
 )
-def test_seniority_level(title, expected):
+def test_seniority_level(title: str, expected: str) -> None:
     assert seniority_level(title) == expected
 
 
-def test_region_uses_iso3_codes():
+def test_region_uses_iso3_codes() -> None:
     # Regression: regions used to be looked up by country *name* after cleaning had
     # already converted names to ISO-3 codes, so every row fell into "Other Regions".
     assert region_for_country("USA") == "North America"
@@ -71,14 +71,14 @@ def test_region_uses_iso3_codes():
     assert region_for_country("ZZZ") == "Other Regions"
 
 
-def test_channel_group_uses_whole_words():
+def test_channel_group_uses_whole_words() -> None:
     # Regression: 'trade show' contains the substring 'ad' and was grouped as Paid Media.
     assert channel_group("Trade Show") == "Events"
     assert channel_group("Advertisement") == "Paid Media"
     assert channel_group("Referral") == "Referral"
 
 
-def test_funnel_flags_are_cumulative():
+def test_funnel_flags_are_cumulative() -> None:
     df = pd.DataFrame(
         {
             schema.STATUS: ["Responded", "No Show", "Attended", "Registered"],
@@ -93,7 +93,7 @@ def test_funnel_flags_are_cumulative():
     assert out[schema.IS_REGISTERED].tolist() == [0, 0, 0, 1]
 
 
-def test_transform_adds_expected_columns(raw_small):
+def test_transform_adds_expected_columns(raw_small: pd.DataFrame) -> None:
     cleaned, _ = clean(raw_small)
     out = transform(cleaned)
     for column in (schema.JOB_CATEGORY, schema.SENIORITY, schema.REGION, schema.CHANNEL_GROUP):
