@@ -12,10 +12,12 @@ from marketing_report.stats import (
     IndependenceTest,
     LogitResult,
     chi_square_independence,
+    detectable_rate_range,
     holm_adjust,
     logistic_regression,
     rate_table,
     segment_vs_rest,
+    wilson_interval,
 )
 
 logger = logging.getLogger(__name__)
@@ -87,6 +89,9 @@ class ChannelRecommendation:
     rationale: str
     current_share: float
     scenario_share: float
+    # True-rate range this channel could have and still not be flagged at 80% power.
+    detectable_low: float = float("nan")
+    detectable_high: float = float("nan")
 
 
 @dataclass
@@ -97,6 +102,7 @@ class AnalysisResult:
     recommendations: list[ChannelRecommendation]
     findings: list[str]
     alpha: float
+    channel_steps: pd.DataFrame | None = None
     date_range: tuple[pd.Timestamp, pd.Timestamp] | None = None
 
 
@@ -120,6 +126,35 @@ def analyze_funnel(df: pd.DataFrame) -> Funnel:
         pending=status_counts[schema.RESPONDED],
         steps=steps,
     )
+
+
+def funnel_steps_by(df: pd.DataFrame, by: str) -> pd.DataFrame:
+    """Per-segment funnel steps with Wilson intervals.
+
+    Splits each segment's overall rate into demo attendance (attended / demo outcome
+    known) and trial registration (registered / attended), so prospects still pending at
+    *Responded* do not dilute either step and the weak step can be seen per segment.
+    """
+    grouped = df.groupby(by)
+    out = pd.DataFrame(
+        {
+            "prospects": grouped.size(),
+            "pending": grouped[schema.STATUS].apply(lambda s: int((s == schema.RESPONDED).sum())),
+            "attended": grouped[schema.IS_ATTENDED].sum().astype(int),
+            "no_show": grouped[schema.IS_NO_SHOW].sum().astype(int),
+            "registered": grouped[schema.IS_REGISTERED].sum().astype(int),
+        }
+    )
+    out["outcome_known"] = out["attended"] + out["no_show"]
+    for step, num, den in (
+        ("attendance", "attended", "outcome_known"),
+        ("registration", "registered", "attended"),
+    ):
+        bounds = [wilson_interval(int(k), int(n)) for k, n in zip(out[num], out[den], strict=True)]
+        out[f"{step}_rate"] = (out[num] / out[den].where(out[den] > 0)).astype(float)
+        out[f"{step}_ci_low"] = [lo for lo, _ in bounds]
+        out[f"{step}_ci_high"] = [hi for _, hi in bounds]
+    return out.sort_values("prospects", ascending=False)
 
 
 def analyze_segment(df: pd.DataFrame, name: str, column: str) -> SegmentAnalysis:
@@ -164,6 +199,19 @@ def recommend_channels(segment: SegmentAnalysis, alpha: float) -> list[ChannelRe
         c: table.loc[c, "volume_share"] * SCENARIO_MULTIPLIERS[a] for c, (a, _) in actions.items()
     }
     total_weight = sum(weights.values())
+
+    # Holm's strictest step is alpha / m, so a channel can only be flagged on its own
+    # evidence if it would pass that threshold. Size the detectable range accordingly.
+    n_tests = max(1, len(vs_rest))
+    total_n = int(table["prospects"].sum())
+    total_conv = int(table["conversions"].sum())
+    detectable = {}
+    for channel, row in table.iterrows():
+        n = int(row["prospects"])
+        rest_n = total_n - n
+        rest_rate = (total_conv - int(row["conversions"])) / rest_n if rest_n else float("nan")
+        detectable[channel] = detectable_rate_range(rest_rate, n, rest_n, alpha / n_tests)
+
     return [
         ChannelRecommendation(
             channel=str(channel),
@@ -171,6 +219,8 @@ def recommend_channels(segment: SegmentAnalysis, alpha: float) -> list[ChannelRe
             rationale=rationale,
             current_share=float(table.loc[channel, "volume_share"]),
             scenario_share=float(weights[channel] / total_weight) if total_weight else 0.0,
+            detectable_low=detectable[channel][0],
+            detectable_high=detectable[channel][1],
         )
         for channel, (action, rationale) in actions.items()
     ]
@@ -259,5 +309,6 @@ def analyze(df: pd.DataFrame, alpha: float = 0.05) -> AnalysisResult:
         recommendations=recommendations,
         findings=findings,
         alpha=alpha,
+        channel_steps=funnel_steps_by(df, schema.SOURCE),
         date_range=date_range,
     )

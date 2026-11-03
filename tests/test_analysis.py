@@ -124,3 +124,43 @@ def test_summary_verdict_uses_adjusted_p():
         f.startswith("Conversion rates by region do not differ significantly")
         for f in result.findings
     )
+
+
+def test_funnel_steps_by_channel_excludes_pending():
+    from marketing_report.analysis import funnel_steps_by
+
+    df = _frame(
+        {
+            "Advertisement": ["Responded"] * 20 + ["No Show"] * 60 + ["Attended"] * 10
+            + ["Registered"] * 10,
+            "Referral": ["No Show"] * 5 + ["Registered"] * 5,
+        }
+    )  # fmt: skip
+    steps = funnel_steps_by(df, schema.SOURCE)
+    ads = steps.loc["Advertisement"]
+    assert ads["pending"] == 20
+    assert ads["attendance_rate"] == pytest.approx(20 / 80)
+    assert ads["registration_rate"] == pytest.approx(10 / 20)
+    ref = steps.loc["Referral"]
+    assert ref["registration_rate"] == 1.0
+    assert ref["registration_ci_high"] == 1.0
+    assert ref["registration_ci_low"] < 1.0
+
+
+def test_recommendations_report_detectable_range():
+    df = _frame(
+        {
+            "Advertisement": ["Registered"] * 50 + ["No Show"] * 450,
+            "Referral": ["Registered"] * 3 + ["No Show"] * 17,
+        }
+    )
+    recs = {
+        r.channel: r
+        for r in recommend_channels(analyze_segment(df, "channel", schema.SOURCE), 0.05)
+    }
+    referral = recs["Referral"]
+    assert referral.action == HOLD
+    # 20 referral prospects cannot distinguish a true 15% from Advertisement's 10%.
+    assert referral.detectable_low < 0.15 < referral.detectable_high
+    # Nor can it detect any shortfall: even a true 0% would not be flagged.
+    assert referral.detectable_low == 0.0

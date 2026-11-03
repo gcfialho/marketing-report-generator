@@ -269,3 +269,29 @@ def holm_adjust(p_values: list[float]) -> list[float]:
         running = max(running, (m - rank) * p_values[idx])
         adjusted[idx] = min(1.0, running)
     return adjusted.tolist()
+
+
+def detectable_rate_range(
+    rest_rate: float,
+    n: int,
+    n_rest: int,
+    alpha: float = 0.05,
+    power: float = 0.8,
+) -> tuple[float, float]:
+    """True rates a segment would need to be told apart from the rest at the given power.
+
+    Returns ``(low, high)``: with ``n`` prospects in the segment and ``n_rest`` in the
+    rest (whose rate is ``rest_rate``), a two-sided test at level ``alpha`` detects the
+    difference with probability ``power`` only if the segment's true rate is below
+    ``low`` or above ``high``. Uses Cohen's h (arcsine-transformed proportions), whose
+    variance does not depend on the rate, so it stays usable near 0%. It is a normal
+    approximation: Fisher's exact test is slightly more conservative.
+    """
+    if n <= 0 or n_rest <= 0:
+        return (float("nan"), float("nan"))
+    z = sps.norm.ppf(1 - alpha / 2) + sps.norm.ppf(power)
+    h = z * np.sqrt(1 / n + 1 / n_rest)
+    phi = np.arcsin(np.sqrt(rest_rate))
+    low = 0.0 if phi - h / 2 <= 0 else float(np.sin(phi - h / 2) ** 2)
+    high = 1.0 if phi + h / 2 >= np.pi / 2 else float(np.sin(phi + h / 2) ** 2)
+    return (low, high)

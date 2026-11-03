@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+import pandas as pd
 from jinja2 import Environment, PackageLoader, StrictUndefined
 
 from marketing_report import charts
@@ -63,6 +64,22 @@ def segment_table(segment: SegmentAnalysis) -> str:
     return "\n".join([header, *rows])
 
 
+def steps_table(steps: pd.DataFrame, label: str) -> str:
+    header = (
+        f"| {label} | Prospects | Pending | Demo attendance | 95% CI | Trial registration | "
+        "95% CI |\n|---|---:|---:|---:|---:|---:|---:|"
+    )
+    rows = [
+        f"| {level} | {s.prospects:,} | {s.pending:,} | "
+        f"{_pct(s.attendance_rate)} ({s.attended:,}/{s.outcome_known:,}) | "
+        f"{_pct(s.attendance_ci_low)} to {_pct(s.attendance_ci_high)} | "
+        f"{_pct(s.registration_rate)} ({s.registered:,}/{s.attended:,}) | "
+        f"{_pct(s.registration_ci_low)} to {_pct(s.registration_ci_high)} |"
+        for level, s in zip(steps.index, steps.itertuples(index=False), strict=True)
+    ]
+    return "\n".join([header, *rows])
+
+
 def test_line(segment: SegmentAnalysis) -> str:
     test = segment.test
     if test.p_value != test.p_value:
@@ -103,7 +120,7 @@ def _environment() -> Environment:
     )
     env.filters["pct"] = _pct
     env.filters["pvalue"] = _pvalue
-    env.globals.update(segment_table=segment_table, test_line=test_line)
+    env.globals.update(segment_table=segment_table, steps_table=steps_table, test_line=test_line)
     return env
 
 

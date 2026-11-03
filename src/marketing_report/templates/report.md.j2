@@ -47,6 +47,13 @@ excluded from the attendance-rate base.
 
 {{ test_line(a.segments.channel) }}
 
+**Where each channel loses prospects.** A channel's overall rate is the product of three
+shares: prospects with a demo outcome recorded, demo attendance, and trial registration after
+attending. The table splits out the last two, so prospects still at *Responded* do not dilute
+either step.
+
+{{ steps_table(a.channel_steps, a.segments.channel.column) }}
+
 ## 3. Audience and geography
 
 ### Job category
@@ -108,10 +115,15 @@ The scenario multiplies each channel's share of prospect volume by
 The dataset contains **no spend or cost data**, so these are shares of prospect volume, not of
 budget, and no ROI or CAC figures are implied.
 
-| Channel | Action | Current volume share | Scenario share | Rationale |
-|---|---|---:|---:|---|
+*Detectable if true rate is* shows how far a channel's true registration rate would have to be
+from the other channels' rate for this test to flag it with 80% power at the current volume
+(normal approximation with Cohen's h at α / number of channels, Holm's strictest step).
+A *Hold* inside that range means "not enough data to tell", not "no difference".
+
+| Channel | Action | Current volume share | Scenario share | Detectable if true rate is | Rationale |
+|---|---|---:|---:|---|---|
 {% for r in a.recommendations %}
-| {{ r.channel }} | {{ r.action }} | {{ r.current_share | pct }} | {{ r.scenario_share | pct }} | {{ r.rationale }} |
+| {{ r.channel }} | {{ r.action }} | {{ r.current_share | pct }} | {{ r.scenario_share | pct }} | {% if r.detectable_low > 0 %}below {{ r.detectable_low | pct }} or {% endif %}above {{ r.detectable_high | pct }} | {{ r.rationale }} |
 {% endfor %}
 
 ## 6. Data quality

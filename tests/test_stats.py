@@ -120,3 +120,24 @@ def test_two_by_two_with_small_counts_uses_fisher():
     test = chi_square_independence(df, "seg", "y")
     assert test.monte_carlo_p_value is None
     assert test.p_value_used == test.fisher_p_value
+
+
+def test_detectable_rate_range_matches_textbook_sample_size():
+    from marketing_report.stats import detectable_rate_range
+
+    # Cohen's h for 10% vs 15% is 0.1519; at alpha = 0.05 and 80% power the classic
+    # equal-groups sample size is (2.8016 / 0.1519)^2 * 2 = 680 per group.
+    low, high = detectable_rate_range(0.10, 680, 680)
+    assert high == pytest.approx(0.15, abs=0.001)
+    assert low < 0.10 < high
+
+
+def test_detectable_rate_range_shrinks_with_sample_size():
+    from marketing_report.stats import detectable_rate_range
+
+    small = detectable_rate_range(0.12, 33, 967)
+    large = detectable_rate_range(0.12, 400, 9600)
+    assert small[1] - small[0] > large[1] - large[0]
+    # With 10 prospects not even a true rate of 0% would be detectably below 12%.
+    assert detectable_rate_range(0.12, 10, 990)[0] == 0.0
+    assert math.isnan(detectable_rate_range(0.12, 0, 100)[0])
