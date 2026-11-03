@@ -45,7 +45,14 @@ excluded from the attendance-rate base.
 
 ![Channel conversion]({{ charts.channel }})
 
-{{ test_line(a.segments.channel.test) }}
+{{ test_line(a.segments.channel) }}
+
+**Where each channel loses prospects.** A channel's overall rate is the product of three
+shares: prospects with a demo outcome recorded, demo attendance, and trial registration after
+attending. The table splits out the last two, so prospects still at *Responded* do not dilute
+either step.
+
+{{ steps_table(a.channel_steps, a.segments.channel.column) }}
 
 ## 3. Audience and geography
 
@@ -55,19 +62,19 @@ excluded from the attendance-rate base.
 
 ![Job category conversion]({{ charts.job_category }})
 
-{{ test_line(a.segments.job_category.test) }}
+{{ test_line(a.segments.job_category) }}
 
 ### Region
 
 {{ segment_table(a.segments.region) }}
 
-{{ test_line(a.segments.region.test) }}
+{{ test_line(a.segments.region) }}
 
 ### Country
 
 {{ segment_table(a.segments.country) }}
 
-{{ test_line(a.segments.country.test) }}
+{{ test_line(a.segments.country) }}
 
 ## 4. Multivariable logistic regression
 
@@ -85,6 +92,8 @@ holding the other variables fixed.
 
 McFadden pseudo-R² = {{ "%.3f" | format(a.model.pseudo_r2) }}; likelihood-ratio test against the
 intercept-only model: p = {{ a.model.llr_p_value | pvalue }}.
+Term p-values are not adjusted for the {{ a.model.terms | length }} terms tested, so a single small
+p-value here is a lead to check, not a finding on its own.
 {% if a.model.excluded_levels %}
 
 Excluded from the model because they are too small or have no variation in the outcome
@@ -108,10 +117,15 @@ The scenario multiplies each channel's share of prospect volume by
 The dataset contains **no spend or cost data**, so these are shares of prospect volume, not of
 budget, and no ROI or CAC figures are implied.
 
-| Channel | Action | Current volume share | Scenario share | Rationale |
-|---|---|---:|---:|---|
+*Detectable if true rate is* shows how far a channel's true registration rate would have to be
+from the other channels' rate for this test to flag it with 80% power at the current volume
+(normal approximation with Cohen's h at α / number of channels, Holm's strictest step).
+A *Hold* inside that range means "not enough data to tell", not "no difference".
+
+| Channel | Action | Current volume share | Scenario share | Detectable if true rate is | Rationale |
+|---|---|---:|---:|---|---|
 {% for r in a.recommendations %}
-| {{ r.channel }} | {{ r.action }} | {{ r.current_share | pct }} | {{ r.scenario_share | pct }} | {{ r.rationale }} |
+| {{ r.channel }} | {{ r.action }} | {{ r.current_share | pct }} | {{ r.scenario_share | pct }} | {% if r.detectable_low > 0 %}below {{ r.detectable_low | pct }} or {% endif %}above {{ r.detectable_high | pct }} | {{ r.rationale }} |
 {% endfor %}
 
 ## 6. Data quality
@@ -138,8 +152,10 @@ Cleaning steps:
 
 - Rates use 95% Wilson score intervals, which remain valid for small segments and rates near 0%.
 - Segment differences are tested with a chi-square test of independence on the
-  segment × registered table, with Cramér's V as effect size. Results are flagged when expected
-  counts are too small for the chi-square approximation.
+  segment × registered table, with Cramér's V as effect size. When expected counts are too small
+  for the chi-square approximation, the verdict uses Fisher's exact test (two levels) or a Monte
+  Carlo test with fixed margins (more levels). The channel, job category and region tests in the
+  executive summary are Holm-corrected as one family.
 - Per-segment comparisons use Fisher's exact test (segment vs. all others) with Holm correction
   for multiple comparisons.
 - The logistic regression uses one-hot (treatment) coding; odds ratios are associations, not

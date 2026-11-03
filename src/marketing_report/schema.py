@@ -51,8 +51,8 @@ ALL_COLUMNS: Final = (
 # Prospect Status is the *furthest* stage a prospect reached in the demo funnel:
 #   Responded -> (No Show | Attended) -> Registered (free trial after the demo)
 # "No Show" is a terminal drop-off after responding, so it is not a stage on the
-# happy path; it shares rank 1 with "Attended" only for "furthest stage" ordering
-# purposes and is never counted as having attended.
+# happy path. It ranks between "Responded" and "Attended" only so deduplication can
+# keep the furthest stage; it is never counted as having attended.
 RESPONDED: Final = "Responded"
 NO_SHOW: Final = "No Show"
 ATTENDED: Final = "Attended"

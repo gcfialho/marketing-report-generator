@@ -7,6 +7,7 @@ import logging
 import os
 import sys
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 
 from marketing_report import __version__, synthetic
@@ -19,6 +20,18 @@ logger = logging.getLogger("marketing_report")
 
 def _env(name: str, default: str | None = None) -> str | None:
     return os.environ.get(f"MARKETING_REPORT_{name}", default)
+
+
+def _generated_at() -> datetime | None:
+    """Honour SOURCE_DATE_EPOCH (reproducible-builds convention) for the report timestamp."""
+    epoch = os.environ.get("SOURCE_DATE_EPOCH")
+    if not epoch:
+        return None
+    try:
+        return datetime.fromtimestamp(int(epoch), tz=UTC)
+    except ValueError:
+        logger.warning("Ignoring invalid SOURCE_DATE_EPOCH=%r", epoch)
+        return None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -97,6 +110,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         pdf=args.pdf,
         alpha=args.alpha,
         export_clean=args.export_clean,
+        generated_at=_generated_at(),
     )
     try:
         result = run(config)

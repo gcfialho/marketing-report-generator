@@ -11,7 +11,7 @@ It complements the README, which covers usage.
 | `Prospect Status` | The funnel outcome: Responded → (No Show \| Attended) → Registered | Standardised to four values; rows with other values are dropped and counted |
 | `Prospect Source` | Channel attribution, the main lever for budget decisions | Analysed directly and grouped into channel families |
 | `Country` | Geographic performance; arrives as free text | Mapped to ISO 3166-1 alpha-3, then to regions |
-| `Job Title` | Audience segmentation (practitioner, decision maker, executive) | Keyword rules on whole words |
+| `Job Title` | Audience segmentation (practitioner, decision maker, executive) | Keyword rules on whole words. Phrases such as "Product Owner" or "Partner Marketing" are removed before the executive check, and "Lead" counts as management only when the title has no practitioner keyword |
 | Opt-in / opt-out timestamps | Timing, recency and the data period covered | Parsed to datetimes; used to break ties when deduplicating |
 
 ## 2. Funnel definition
@@ -41,9 +41,11 @@ The *bottleneck* is the step with the lowest rate. It is not simply the most com
 | Question | Method | Reason |
 |---|---|---|
 | How precise is a segment's rate? | Wilson score interval (95%) | Stays inside [0, 1] and works for small samples. A channel with 0 of 14 registrations has an upper bound of about 21%, not a certain 0% |
-| Do segments differ at all? | Chi-square test of independence on segment × registered, with Cramér's V | Answers the conversion question directly. Expected-count rules are checked and flagged |
+| Do segments differ at all? | Chi-square test of independence on segment × registered, with Cramér's V | Answers the conversion question directly. When Cochran's rule fails, the verdict uses Fisher's exact test (2 levels) or a Monte Carlo test with fixed margins (Patefield tables, seeded so reports are reproducible) |
+| Can the summary's three omnibus tests be read at face value? | Holm correction across the channel, job category and region tests | Three uncorrected tests at α = 0.05 give roughly a 14% chance of at least one false "significant" headline |
 | Which segments differ from the rest? | Fisher's exact test per segment vs. all others, Holm-adjusted | Exact for small cells. Holm controls the family-wise error rate across many comparisons |
-| What is associated with registration when channel, region and role are considered together? | Logistic regression with one-hot (treatment) coding, reported as odds ratios with 95% CIs | Categorical predictors must not be label-encoded as integers. Odds ratios against a stated reference level are interpretable |
+| What is associated with registration when channel, region and role are considered together? | Logistic regression with one-hot (treatment) coding, reported as odds ratios with 95% CIs | Categorical predictors must not be label-encoded as integers. Odds ratios against a stated reference level are interpretable. Term p-values are not adjusted, and the report says so |
+| Is a *Hold* "no difference" or "not enough data"? | Range of true rates that would be flagged with 80% power, from Cohen's h at α / number of channels | Turns a non-significant result into a statement about sample size. Cohen's h stays usable at 0% rates |
 
 Levels with too few rows, or with no variation in the outcome, cause quasi-complete separation
 in maximum-likelihood logistic regression. The pipeline excludes those rows from the model,
@@ -59,6 +61,21 @@ says so in the report, and still shows the levels in the descriptive tables.
 5. **Reallocation scenarios**: a channel is marked *Increase* or *Decrease* only when its
    difference from the other channels is statistically significant. The scenario then shifts
    **volume share** with fixed multipliers and renormalises to 100%.
+
+The rule is deliberately conservative. The worked example in
+[`examples/channel-decision/`](../examples/channel-decision/README.md) measures the cost: on
+synthetic data where Referral truly converts at 22% against 12% for the rest, the rule flags it
+in 24% of 1,000-prospect exports and 89% of 5,000-prospect exports, and flags a channel in the
+wrong direction in at most 1% at any size.
+
+## 5a. Checking the method against a known answer
+
+The synthetic generator's parameters fix a true registration rate per channel
+(`synthetic.true_registration_rates()`). Because of that, the pipeline can be tested the way a
+model is: generate many exports, run the same analysis, and count how often the intervals cover
+the truth and how often the decision rule acts, and in which direction. A test also rebuilds the
+example report and fails if the checked-in copy differs, so published numbers cannot drift from
+the code.
 
 ## 6. Production data layout
 

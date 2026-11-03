@@ -86,3 +86,71 @@ def test_logistic_regression_recovers_direction_and_excludes_sparse_levels():
     assert referral.ci_low > 1
     assert referral.p_value < 0.001
     assert result.n_obs == n
+
+
+def test_monte_carlo_p_matches_asymptotic_p_on_large_table():
+    from scipy import stats as sps
+
+    from marketing_report.stats import monte_carlo_chi_square_p
+
+    table = np.array([[120, 880], [150, 850], [95, 905]])
+    asymptotic = sps.chi2_contingency(table, correction=False).pvalue
+    assert monte_carlo_chi_square_p(table) == pytest.approx(asymptotic, abs=0.01)
+    # Seeded, so the report is reproducible.
+    assert monte_carlo_chi_square_p(table) == monte_carlo_chi_square_p(table)
+
+
+def test_small_expected_counts_switch_to_monte_carlo_p():
+    # 4 x 2 table with a tiny zero-conversion segment: chi-square approximation fails.
+    df = pd.DataFrame(
+        {
+            "seg": ["a"] * 120 + ["b"] * 30 + ["c"] * 800 + ["d"] * 20,
+            "y": [1] * 20 + [0] * 100 + [1] * 5 + [0] * 25 + [1] * 80 + [0] * 720 + [0] * 20,
+        }
+    )
+    test = chi_square_independence(df, "seg", "y")
+    assert not test.assumptions_ok
+    assert test.monte_carlo_p_value is not None
+    assert test.p_value_used == test.monte_carlo_p_value
+    assert 0 < test.monte_carlo_p_value <= 1
+
+
+def test_two_by_two_with_small_counts_uses_fisher():
+    df = pd.DataFrame({"seg": ["a"] * 6 + ["b"] * 6, "y": [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1]})
+    test = chi_square_independence(df, "seg", "y")
+    assert test.monte_carlo_p_value is None
+    assert test.p_value_used == test.fisher_p_value
+
+
+def test_detectable_rate_range_matches_textbook_sample_size():
+    from marketing_report.stats import detectable_rate_range
+
+    # Cohen's h for 10% vs 15% is 0.1519; at alpha = 0.05 and 80% power the classic
+    # equal-groups sample size is (2.8016 / 0.1519)^2 * 2 = 680 per group.
+    low, high = detectable_rate_range(0.10, 680, 680)
+    assert high == pytest.approx(0.15, abs=0.001)
+    assert low < 0.10 < high
+
+
+def test_detectable_rate_range_shrinks_with_sample_size():
+    from marketing_report.stats import detectable_rate_range
+
+    small = detectable_rate_range(0.12, 33, 967)
+    large = detectable_rate_range(0.12, 400, 9600)
+    assert small[1] - small[0] > large[1] - large[0]
+    # With 10 prospects not even a true rate of 0% would be detectably below 12%.
+    assert detectable_rate_range(0.12, 10, 990)[0] == 0.0
+    assert math.isnan(detectable_rate_range(0.12, 0, 100)[0])
+
+
+def test_logistic_regression_skips_collinear_predictors():
+    # "segment" is fully determined by "group", so the design matrix is rank deficient.
+    n = 200
+    df = pd.DataFrame(
+        {
+            "y": [i % 3 == 0 for i in range(n)],
+            "group": [("a", "b", "c", "d")[i % 4] for i in range(n)],
+            "segment": [("x", "y")[i % 2] for i in range(n)],
+        }
+    )
+    assert logistic_regression(df, "y", ["group", "segment"]) is None

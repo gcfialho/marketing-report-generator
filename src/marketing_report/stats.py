@@ -56,11 +56,43 @@ class IndependenceTest:
     min_expected: float
     low_expected_share: float
     fisher_p_value: float | None = None
+    monte_carlo_p_value: float | None = None
 
     @property
     def assumptions_ok(self) -> bool:
         """Cochran's rule: no expected count < 1 and at most 20% of cells below 5."""
         return self.min_expected >= 1 and self.low_expected_share <= 0.2
+
+    @property
+    def p_value_used(self) -> float:
+        """The p-value to act on: exact (2x2) or Monte Carlo when the chi-square
+        approximation is unreliable, otherwise the asymptotic chi-square p-value."""
+        if self.assumptions_ok:
+            return self.p_value
+        if self.fisher_p_value is not None:
+            return self.fisher_p_value
+        if self.monte_carlo_p_value is not None:
+            return self.monte_carlo_p_value
+        return self.p_value
+
+
+def monte_carlo_chi_square_p(table: np.ndarray, n_resamples: int = 9999, seed: int = 0) -> float:
+    """Chi-square p-value from tables simulated with the observed margins fixed.
+
+    Tables are drawn with Patefield's algorithm (``scipy.stats.random_table``), which is
+    the conditional null distribution used by Fisher's exact test, so the result stays
+    valid when expected counts are too small for the asymptotic chi-square distribution.
+    The seed makes the p-value reproducible.
+    """
+    observed = np.asarray(table, dtype=float)
+    rows, cols = observed.sum(axis=1), observed.sum(axis=0)
+    expected = np.outer(rows, cols) / observed.sum()
+    statistic = ((observed - expected) ** 2 / expected).sum()
+    sims = sps.random_table(rows.astype(int), cols.astype(int), seed=seed).rvs(size=n_resamples)
+    simulated = ((sims - expected) ** 2 / expected).sum(axis=(1, 2))
+    # Small tolerance so floating-point noise does not drop ties with the observed table.
+    exceed = int((simulated >= statistic - 1e-9 * max(1.0, statistic)).sum())
+    return (1 + exceed) / (n_resamples + 1)
 
 
 def chi_square_independence(df: pd.DataFrame, variable: str, target: str) -> IndependenceTest:
@@ -82,15 +114,22 @@ def chi_square_independence(df: pd.DataFrame, variable: str, target: str) -> Ind
     if table.shape == (2, 2):
         fisher_p = float(sps.fisher_exact(table.to_numpy()).pvalue)
 
+    min_expected = float(expected.min())
+    low_share = float((expected < 5).mean())
+    monte_carlo_p = None
+    if fisher_p is None and not (min_expected >= 1 and low_share <= 0.2):
+        monte_carlo_p = monte_carlo_chi_square_p(table.to_numpy())
+
     return IndependenceTest(
         variable=variable,
         chi2=float(result.statistic),
         p_value=float(result.pvalue),
         dof=int(result.dof),
         cramers_v=cramers_v,
-        min_expected=float(expected.min()),
-        low_expected_share=float((expected < 5).mean()),
+        min_expected=min_expected,
+        low_expected_share=low_share,
         fisher_p_value=fisher_p,
+        monte_carlo_p_value=monte_carlo_p,
     )
 
 
@@ -160,10 +199,20 @@ def logistic_regression(
                 design[f"{column}: {level}"] = (data[column].astype(str) == level).astype(float)
     design = sm.add_constant(design, has_constant="add")
 
+    # Perfectly collinear predictors (e.g. one segment fully determined by another) make the
+    # Hessian singular; whether the fit then crashes depends on the BLAS build. Skip instead.
+    if np.linalg.matrix_rank(design.to_numpy()) < design.shape[1]:
+        logger.warning("Logistic regression skipped: predictors are perfectly collinear")
+        return None
+
     with warnings.catch_warnings(record=True) as records:
         warnings.simplefilter("always", ConvergenceWarning)
         warnings.simplefilter("always", PerfectSeparationWarning)
-        fit = sm.Logit(data[target].astype(float), design).fit(disp=False, maxiter=200)
+        try:
+            fit = sm.Logit(data[target].astype(float), design).fit(disp=False, maxiter=200)
+        except np.linalg.LinAlgError:
+            logger.warning("Logistic regression skipped: singular Hessian")
+            return None
     caught = [str(r.message) for r in records]
 
     conf = fit.conf_int()
@@ -230,3 +279,29 @@ def holm_adjust(p_values: list[float]) -> list[float]:
         running = max(running, (m - rank) * p_values[idx])
         adjusted[idx] = min(1.0, running)
     return adjusted.tolist()
+
+
+def detectable_rate_range(
+    rest_rate: float,
+    n: int,
+    n_rest: int,
+    alpha: float = 0.05,
+    power: float = 0.8,
+) -> tuple[float, float]:
+    """True rates a segment would need to be told apart from the rest at the given power.
+
+    Returns ``(low, high)``: with ``n`` prospects in the segment and ``n_rest`` in the
+    rest (whose rate is ``rest_rate``), a two-sided test at level ``alpha`` detects the
+    difference with probability ``power`` only if the segment's true rate is below
+    ``low`` or above ``high``. Uses Cohen's h (arcsine-transformed proportions), whose
+    variance does not depend on the rate, so it stays usable near 0%. It is a normal
+    approximation: Fisher's exact test is slightly more conservative.
+    """
+    if n <= 0 or n_rest <= 0:
+        return (float("nan"), float("nan"))
+    z = sps.norm.ppf(1 - alpha / 2) + sps.norm.ppf(power)
+    h = z * np.sqrt(1 / n + 1 / n_rest)
+    phi = np.arcsin(np.sqrt(rest_rate))
+    low = 0.0 if phi - h / 2 <= 0 else float(np.sin(phi - h / 2) ** 2)
+    high = 1.0 if phi + h / 2 >= np.pi / 2 else float(np.sin(phi + h / 2) ** 2)
+    return (low, high)

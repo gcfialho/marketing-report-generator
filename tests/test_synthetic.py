@@ -47,3 +47,19 @@ def test_write_round_trip(tmp_path):
 def test_rejects_non_positive_rows():
     with pytest.raises(ValueError, match="positive"):
         synthetic.generate(0)
+
+
+def test_true_registration_rates_match_large_sample():
+    rates = synthetic.true_registration_rates()
+    assert max(rates, key=rates.get) == "Referral"
+    df, _ = clean(synthetic.generate(20000, seed=11))
+    observed = (df[schema.STATUS] == schema.REGISTERED).groupby(df[schema.SOURCE]).mean()
+    for source in ("Advertisement", "Trade Show", "Referral"):
+        assert observed[source] == pytest.approx(rates[source], abs=0.025)
+
+
+def test_true_rest_rate_is_volume_weighted():
+    rates = synthetic.true_registration_rates()
+    rest = synthetic.true_rest_rate("Referral")
+    others = [rates[s] for s in synthetic.SOURCES if s != "Referral"]
+    assert min(others) < rest < max(others)

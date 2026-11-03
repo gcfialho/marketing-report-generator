@@ -3,16 +3,16 @@
 - **Objective:** Maximise free-trial registrations
 - **Data source:** `synthetic (rows=1000, seed=42)`
 - **Opt-in period covered:** 2023-01-15 to 2023-11-30
-- **Generated:** 2026-10-19 12:21
+- **Generated:** 2026-11-03 12:00
 - **Significance level:** α = 0.05
 
 ## Executive summary
 
 - 108 of 1,000 prospects registered for a trial (10.8%).
 - Weakest funnel step: Demo attendance (attended / demo outcome known) at 26.2% (234 of 894).
-- Conversion rates by channel do not differ significantly (chi-square = 7.16, df = 3, p = 0.067, Cramér's V = 0.08) (some expected counts < 5; interpret with care).
-- Conversion rates by job category do not differ significantly (chi-square = 4.14, df = 3, p = 0.246, Cramér's V = 0.06).
-- Conversion rates by region do not differ significantly (chi-square = 1.86, df = 3, p = 0.601, Cramér's V = 0.04).
+- Conversion rates by channel do not differ significantly (Monte Carlo chi-square p = 0.066; expected counts too small for the asymptotic test, Holm-adjusted p = 0.132, Cramér's V = 0.08).
+- Conversion rates by job category differ significantly (chi-square = 11.61, df = 3, p = 0.009, Holm-adjusted p = 0.027, Cramér's V = 0.11).
+- Conversion rates by region do not differ significantly (chi-square = 1.86, df = 3, p = 0.601, Holm-adjusted p = 0.601, Cramér's V = 0.04).
 
 ## 1. Funnel
 
@@ -50,7 +50,19 @@ excluded from the attendance-rate base.
 
 ![Channel conversion](charts/channel_rates.png)
 
-*Chi-square test of independence: χ² = 7.16, df = 3, p = 0.067, Cramér's V = 0.08. Caution: smallest expected count is 2.5 and 25% of cells are below 5, so the chi-square approximation is unreliable; rely on the exact per-segment tests.*
+*Chi-square test of independence: χ² = 7.16, df = 3, p = 0.067, Cramér's V = 0.08. Caution: smallest expected count is 2.5 and 25% of cells are below 5, so the chi-square approximation is unreliable. Monte Carlo test with fixed margins (9,999 simulated tables): p = 0.066. Holm-adjusted across the channel, job category and region tests: p = 0.132.*
+
+**Where each channel loses prospects.** A channel's overall rate is the product of three
+shares: prospects with a demo outcome recorded, demo attendance, and trial registration after
+attending. The table splits out the last two, so prospects still at *Responded* do not dilute
+either step.
+
+| Prospect Source | Prospects | Pending | Demo attendance | 95% CI | Trial registration | 95% CI |
+|---|---:|---:|---:|---:|---:|---:|
+| Advertisement | 818 | 86 | 25.0% (183/732) | 22.0% to 28.3% | 45.4% (83/183) | 38.3% to 52.6% |
+| Trade Show | 126 | 15 | 31.5% (35/111) | 23.6% to 40.7% | 57.1% (20/35) | 40.9% to 72.0% |
+| Referral | 33 | 3 | 33.3% (10/30) | 19.2% to 51.2% | 50.0% (5/10) | 23.7% to 76.3% |
+| Social Media | 23 | 2 | 28.6% (6/21) | 13.8% to 50.0% | 0.0% (0/6) | 0.0% to 39.0% |
 
 ## 3. Audience and geography
 
@@ -58,14 +70,14 @@ excluded from the attendance-rate base.
 
 | Job Category | Prospects | Registered | Rate | 95% CI | Volume share | Adj. p vs rest |
 |---|---:|---:|---:|---:|---:|---:|
-| Other | 62 | 11 | 17.7% | 10.2% to 29.0% | 6.2% | 0.350 |
-| Decision Maker | 228 | 26 | 11.4% | 7.9% to 16.2% | 22.8% | 1.000 |
-| Practitioner | 610 | 63 | 10.3% | 8.2% to 13.0% | 61.0% | 1.000 |
-| Executive | 100 | 8 | 8.0% | 4.1% to 15.0% | 10.0% | 1.000 |
+| Other | 48 | 11 | 22.9% | 13.3% to 36.5% | 4.8% | 0.054 |
+| Decision Maker | 138 | 20 | 14.5% | 9.6% to 21.3% | 13.8% | 0.419 |
+| Practitioner | 700 | 69 | 9.9% | 7.9% to 12.3% | 70.0% | 0.419 |
+| Executive | 114 | 8 | 7.0% | 3.6% to 13.2% | 11.4% | 0.419 |
 
 ![Job category conversion](charts/job_category_rates.png)
 
-*Chi-square test of independence: χ² = 4.14, df = 3, p = 0.246, Cramér's V = 0.06.*
+*Chi-square test of independence: χ² = 11.61, df = 3, p = 0.009, Cramér's V = 0.11. Holm-adjusted across the channel, job category and region tests: p = 0.027.*
 
 ### Region
 
@@ -76,7 +88,7 @@ excluded from the attendance-rate base.
 | Europe | 319 | 33 | 10.3% | 7.5% to 14.2% | 31.9% | 1.000 |
 | Latin America | 108 | 8 | 7.4% | 3.8% to 13.9% | 10.8% | 1.000 |
 
-*Chi-square test of independence: χ² = 1.86, df = 3, p = 0.601, Cramér's V = 0.04.*
+*Chi-square test of independence: χ² = 1.86, df = 3, p = 0.601, Cramér's V = 0.04. Holm-adjusted across the channel, job category and region tests: p = 0.601.*
 
 ### Country
 
@@ -96,7 +108,7 @@ excluded from the attendance-rate base.
 | BRA | 84 | 4 | 4.8% | 1.9% to 11.6% | 8.4% | 0.859 |
 | ITA | 7 | 0 | 0.0% | 0.0% to 35.4% | 0.7% | 1.000 |
 
-*Chi-square test of independence: χ² = 8.45, df = 12, p = 0.749, Cramér's V = 0.09. Caution: smallest expected count is 0.8 and 19% of cells are below 5, so the chi-square approximation is unreliable; rely on the exact per-segment tests.*
+*Chi-square test of independence: χ² = 8.45, df = 12, p = 0.749, Cramér's V = 0.09. Caution: smallest expected count is 0.8 and 19% of cells are below 5, so the chi-square approximation is unreliable. Monte Carlo test with fixed margins (9,999 simulated tables): p = 0.758.*
 
 ## 4. Multivariable logistic regression
 
@@ -107,17 +119,19 @@ holding the other variables fixed.
 
 | Term | Odds ratio | 95% CI | p-value |
 |---|---:|---:|---:|
-| Prospect Source: Referral | 1.62 | 0.60 to 4.32 | 0.339 |
-| Prospect Source: Trade Show | 1.70 | 1.00 to 2.90 | 0.052 |
-| Geographic Region: Asia Pacific | 1.10 | 0.63 to 1.91 | 0.735 |
-| Geographic Region: Europe | 0.92 | 0.57 to 1.48 | 0.718 |
-| Geographic Region: Latin America | 0.59 | 0.27 to 1.30 | 0.190 |
-| Job Category: Decision Maker | 1.09 | 0.67 to 1.78 | 0.716 |
-| Job Category: Executive | 0.78 | 0.36 to 1.69 | 0.528 |
-| Job Category: Other | 2.06 | 1.01 to 4.20 | 0.047 |
+| Prospect Source: Referral | 1.73 | 0.65 to 4.63 | 0.277 |
+| Prospect Source: Trade Show | 1.69 | 0.99 to 2.88 | 0.056 |
+| Geographic Region: Asia Pacific | 1.10 | 0.63 to 1.90 | 0.743 |
+| Geographic Region: Europe | 0.91 | 0.56 to 1.47 | 0.703 |
+| Geographic Region: Latin America | 0.57 | 0.26 to 1.27 | 0.170 |
+| Job Category: Decision Maker | 1.54 | 0.90 to 2.63 | 0.118 |
+| Job Category: Executive | 0.72 | 0.34 to 1.55 | 0.401 |
+| Job Category: Other | 3.02 | 1.45 to 6.27 | 0.003 |
 
-McFadden pseudo-R² = 0.015; likelihood-ratio test against the
-intercept-only model: p = 0.262.
+McFadden pseudo-R² = 0.024; likelihood-ratio test against the
+intercept-only model: p = 0.036.
+Term p-values are not adjusted for the 8 terms tested, so a single small
+p-value here is a lead to check, not a finding on its own.
 
 Excluded from the model because they are too small or have no variation in the outcome
 (maximum likelihood cannot estimate them): Prospect Source: Social Media.
@@ -132,12 +146,17 @@ The scenario multiplies each channel's share of prospect volume by
 The dataset contains **no spend or cost data**, so these are shares of prospect volume, not of
 budget, and no ROI or CAC figures are implied.
 
-| Channel | Action | Current volume share | Scenario share | Rationale |
-|---|---|---:|---:|---|
-| Trade Show | Hold | 12.6% | 12.6% | No significant difference vs. other channels (adj. p = 0.256) |
-| Referral | Hold | 3.3% | 3.3% | No significant difference vs. other channels (adj. p = 0.487) |
-| Advertisement | Hold | 81.8% | 81.8% | No significant difference vs. other channels (adj. p = 0.487) |
-| Social Media | Hold | 2.3% | 2.3% | No significant difference vs. other channels (adj. p = 0.487) |
+*Detectable if true rate is* shows how far a channel's true registration rate would have to be
+from the other channels' rate for this test to flag it with 80% power at the current volume
+(normal approximation with Cohen's h at α / number of channels, Holm's strictest step).
+A *Hold* inside that range means "not enough data to tell", not "no difference".
+
+| Channel | Action | Current volume share | Scenario share | Detectable if true rate is | Rationale |
+|---|---|---:|---:|---|---|
+| Trade Show | Hold | 12.6% | 12.6% | below 2.7% or above 21.5% | No significant difference vs. other channels (adj. p = 0.256) |
+| Referral | Hold | 3.3% | 3.3% | below 0.1% or above 34.5% | No significant difference vs. other channels (adj. p = 0.487) |
+| Advertisement | Hold | 81.8% | 81.8% | below 5.8% or above 24.4% | No significant difference vs. other channels (adj. p = 0.487) |
+| Social Media | Hold | 2.3% | 2.3% | above 40.6% | No significant difference vs. other channels (adj. p = 0.487) |
 
 ## 6. Data quality
 
@@ -157,8 +176,10 @@ Cleaning steps:
 
 - Rates use 95% Wilson score intervals, which remain valid for small segments and rates near 0%.
 - Segment differences are tested with a chi-square test of independence on the
-  segment × registered table, with Cramér's V as effect size. Results are flagged when expected
-  counts are too small for the chi-square approximation.
+  segment × registered table, with Cramér's V as effect size. When expected counts are too small
+  for the chi-square approximation, the verdict uses Fisher's exact test (two levels) or a Monte
+  Carlo test with fixed margins (more levels). The channel, job category and region tests in the
+  executive summary are Holm-corrected as one family.
 - Per-segment comparisons use Fisher's exact test (segment vs. all others) with Holm correction
   for multiple comparisons.
 - The logistic regression uses one-hot (treatment) coding; odds ratios are associations, not

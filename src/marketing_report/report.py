@@ -8,12 +8,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+import pandas as pd
 from jinja2 import Environment, PackageLoader, StrictUndefined
 
 from marketing_report import charts
 from marketing_report.analysis import SCENARIO_MULTIPLIERS, AnalysisResult, SegmentAnalysis
 from marketing_report.cleaning import CleaningReport
-from marketing_report.stats import IndependenceTest
 from marketing_report.validation import ValidationReport
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,24 @@ def segment_table(segment: SegmentAnalysis) -> str:
     return "\n".join([header, *rows])
 
 
-def test_line(test: IndependenceTest) -> str:
+def steps_table(steps: pd.DataFrame, label: str) -> str:
+    header = (
+        f"| {label} | Prospects | Pending | Demo attendance | 95% CI | Trial registration | "
+        "95% CI |\n|---|---:|---:|---:|---:|---:|---:|"
+    )
+    rows = [
+        f"| {level} | {s.prospects:,} | {s.pending:,} | "
+        f"{_pct(s.attendance_rate)} ({s.attended:,}/{s.outcome_known:,}) | "
+        f"{_pct(s.attendance_ci_low)} to {_pct(s.attendance_ci_high)} | "
+        f"{_pct(s.registration_rate)} ({s.registered:,}/{s.attended:,}) | "
+        f"{_pct(s.registration_ci_low)} to {_pct(s.registration_ci_high)} |"
+        for level, s in zip(steps.index, steps.itertuples(index=False), strict=True)
+    ]
+    return "\n".join([header, *rows])
+
+
+def test_line(segment: SegmentAnalysis) -> str:
+    test = segment.test
     if test.p_value != test.p_value:
         return "*Chi-square test not applicable (fewer than two levels).*"
     line = (
@@ -77,7 +94,17 @@ def test_line(test: IndependenceTest) -> str:
         line += (
             f" Caution: smallest expected count is {test.min_expected:.1f} and "
             f"{test.low_expected_share:.0%} of cells are below 5, so the chi-square "
-            "approximation is unreliable; rely on the exact per-segment tests."
+            "approximation is unreliable."
+        )
+        if test.monte_carlo_p_value is not None:
+            line += (
+                " Monte Carlo test with fixed margins (9,999 simulated tables): "
+                f"p = {_pvalue(test.monte_carlo_p_value)}."
+            )
+    if segment.summary_p_adjusted is not None:
+        line += (
+            " Holm-adjusted across the channel, job category and region tests: "
+            f"p = {_pvalue(segment.summary_p_adjusted)}."
         )
     return f"*{line}*"
 
@@ -93,7 +120,7 @@ def _environment() -> Environment:
     )
     env.filters["pct"] = _pct
     env.filters["pvalue"] = _pvalue
-    env.globals.update(segment_table=segment_table, test_line=test_line)
+    env.globals.update(segment_table=segment_table, steps_table=steps_table, test_line=test_line)
     return env
 
 

@@ -19,15 +19,29 @@ OTHER = "Other"
 UNKNOWN = "Unknown"
 
 EXECUTIVE_KEYWORDS = (
-    "president", "vice president", "vp", "ceo", "cto", "cmo", "cfo", "coo", "cso", "cro", "cio",
-    "chief", "founder", "co-founder", "owner", "partner", "board", "chairman", "chairwoman",
+    "president", "vice president", "vp", "svp", "evp", "ceo", "cto", "cmo", "cfo", "coo", "cso",
+    "cro", "cio", "chief", "founder", "co-founder", "owner", "partner", "board", "chairman",
+    "chairwoman",
 )  # fmt: skip
-DECISION_MAKER_KEYWORDS = ("manager", "director", "head", "lead", "supervisor")
+# Phrases that contain an executive keyword but are not executive roles. They are removed
+# from the title before the executive check ("Product Owner", "Partner Marketing Manager").
+NOT_EXECUTIVE_PHRASES = (
+    "product owner", "process owner", "service owner", "data owner", "system owner",
+    "partner manager", "partner marketing", "channel partner", "partner success",
+    "board certified",
+)  # fmt: skip
+DECISION_MAKER_KEYWORDS = (
+    "manager", "director", "head", "supervisor", "team lead", "team leader",
+)  # fmt: skip
 PRACTITIONER_KEYWORDS = (
     "analyst", "specialist", "engineer", "coordinator", "associate", "junior", "assistant",
     "intern", "trainee", "consultant", "developer", "designer", "researcher", "administrator",
-    "scientist", "programmer",
+    "scientist", "programmer", "architect", "advisor", "product owner", "account executive",
 )  # fmt: skip
+# "Lead" is ambiguous: "Lead Data Analyst" is a senior individual contributor, while
+# "Automation Lead" runs a team. It only marks a decision maker when no practitioner
+# keyword is present; either way it raises seniority.
+LEAD_KEYWORDS = ("lead", "leader")
 
 SENIOR_KEYWORDS = ("senior", "sr", "lead", "principal", "chief")
 JUNIOR_KEYWORDS = ("junior", "jr", "associate", "intern", "trainee")
@@ -57,6 +71,8 @@ def _keyword_pattern(keywords: Iterable[str]) -> re.Pattern[str]:
 
 
 _EXECUTIVE_RE = _keyword_pattern(EXECUTIVE_KEYWORDS)
+_NOT_EXECUTIVE_RE = _keyword_pattern(NOT_EXECUTIVE_PHRASES)
+_LEAD_RE = _keyword_pattern(LEAD_KEYWORDS)
 _DECISION_MAKER_RE = _keyword_pattern(DECISION_MAKER_KEYWORDS)
 _PRACTITIONER_RE = _keyword_pattern(PRACTITIONER_KEYWORDS)
 _SENIOR_RE = _keyword_pattern(SENIOR_KEYWORDS)
@@ -64,23 +80,29 @@ _JUNIOR_RE = _keyword_pattern(JUNIOR_KEYWORDS)
 _CHANNEL_RES = {group: _keyword_pattern(words) for group, words in CHANNEL_GROUP_KEYWORDS.items()}
 
 
+def _is_executive(title: str) -> bool:
+    return bool(_EXECUTIVE_RE.search(_NOT_EXECUTIVE_RE.sub(" ", title)))
+
+
 def categorize_job_title(title: object) -> str:
     """Executive > Decision Maker > Practitioner, by highest-authority keyword found."""
     if not isinstance(title, str) or not title.strip():
         return OTHER
-    if _EXECUTIVE_RE.search(title):
+    if _is_executive(title):
         return EXECUTIVE
     if _DECISION_MAKER_RE.search(title):
         return DECISION_MAKER
     if _PRACTITIONER_RE.search(title):
         return PRACTITIONER
+    if _LEAD_RE.search(title):
+        return DECISION_MAKER
     return OTHER
 
 
 def seniority_level(title: object) -> str:
     if not isinstance(title, str) or not title.strip():
         return UNKNOWN
-    if _SENIOR_RE.search(title):
+    if _SENIOR_RE.search(title) or _is_executive(title):
         return "Senior"
     if _JUNIOR_RE.search(title):
         return "Junior"
