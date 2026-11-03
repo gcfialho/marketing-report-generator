@@ -58,3 +58,10 @@ def test_cli_reports_missing_columns(tmp_path):
     bad = tmp_path / "bad.csv"
     pd.DataFrame({"foo": [1]}).to_csv(bad, index=False)
     assert main(["run", "--input", str(bad), "--output-dir", str(tmp_path / "o")]) == 1
+
+
+def test_cli_honours_source_date_epoch(tmp_path, monkeypatch):
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", "1767225600")  # 2026-01-01 00:00 UTC
+    assert main(["run", "--output-dir", str(tmp_path), "--no-clean-export"]) == 0
+    report = (tmp_path / "example-co-marketing-report.md").read_text(encoding="utf-8")
+    assert "- **Generated:** 2026-01-01 00:00" in report
