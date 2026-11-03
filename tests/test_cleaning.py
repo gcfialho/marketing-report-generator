@@ -4,7 +4,7 @@ from marketing_report import schema
 from marketing_report.cleaning import clean, normalise_strings, standardise_country
 
 
-def test_clean_end_to_end(raw_small):
+def test_clean_end_to_end(raw_small: pd.DataFrame) -> None:
     df, report = clean(raw_small)
 
     assert report.rows_in == 6
@@ -15,14 +15,14 @@ def test_clean_end_to_end(raw_small):
     assert df[schema.PROSPECT_ID].is_unique
 
 
-def test_dedup_keeps_furthest_funnel_stage(raw_small):
+def test_dedup_keeps_furthest_funnel_stage(raw_small: pd.DataFrame) -> None:
     df, _ = clean(raw_small)
     p2 = df[df[schema.PROSPECT_ID] == "P2"].iloc[0]
     # The older row reached "Attended"; the newer one is a "No Show". Funnel progress wins.
     assert p2[schema.STATUS] == schema.ATTENDED
 
 
-def test_dedup_breaks_ties_on_latest_opt_in():
+def test_dedup_breaks_ties_on_latest_opt_in() -> None:
     raw = pd.DataFrame(
         {
             schema.PROSPECT_ID: ["A", "A"],
@@ -38,19 +38,19 @@ def test_dedup_breaks_ties_on_latest_opt_in():
     assert df.iloc[0][schema.SOURCE] == "Trade Show"
 
 
-def test_countries_mapped_to_iso3(raw_small):
+def test_countries_mapped_to_iso3(raw_small: pd.DataFrame) -> None:
     df, report = clean(raw_small)
     assert set(df[schema.COUNTRY]) == {"USA", "ARG"}
     assert report.unmapped_countries == []
 
 
-def test_standardise_country_unknown_is_title_cased():
+def test_standardise_country_unknown_is_title_cased() -> None:
     assert standardise_country(" atlantis ") == "Atlantis"
     assert standardise_country("españa") == "ESP"
-    assert pd.isna(standardise_country(None))
+    assert standardise_country(None) is None
 
 
-def test_normalise_strings_preserves_missing_values():
+def test_normalise_strings_preserves_missing_values() -> None:
     df = pd.DataFrame({"a": ["  x   y ", None, "", "nan"]})
     out = normalise_strings(df)
     assert out["a"].iloc[0] == "x y"
@@ -60,6 +60,6 @@ def test_normalise_strings_preserves_missing_values():
     assert out["a"].iloc[3] == "nan"
 
 
-def test_status_variants_are_standardised(raw_small):
+def test_status_variants_are_standardised(raw_small: pd.DataFrame) -> None:
     df, _ = clean(raw_small)
     assert set(df[schema.STATUS]) <= set(schema.VALID_STATUSES)

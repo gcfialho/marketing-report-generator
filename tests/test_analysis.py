@@ -28,7 +28,7 @@ def _frame(status_by_source: dict[str, list[str]]) -> pd.DataFrame:
     return transform(pd.DataFrame(rows))
 
 
-def test_funnel_rates_follow_stage_definitions():
+def test_funnel_rates_follow_stage_definitions() -> None:
     df = _frame(
         {
             "Advertisement": ["Responded"] * 10
@@ -48,7 +48,7 @@ def test_funnel_rates_follow_stage_definitions():
     assert funnel.bottleneck is attendance
 
 
-def test_recommendations_require_significance_and_sum_to_100_percent():
+def test_recommendations_require_significance_and_sum_to_100_percent() -> None:
     df = _frame(
         {
             "Advertisement": ["Registered"] * 50 + ["No Show"] * 450,  # 10%
@@ -67,7 +67,7 @@ def test_recommendations_require_significance_and_sum_to_100_percent():
     assert sum(r.current_share for r in recs.values()) == pytest.approx(1.0)
 
 
-def test_analyze_produces_findings_and_model():
+def test_analyze_produces_findings_and_model() -> None:
     df = _frame(
         {
             "Advertisement": ["Registered"] * 60 + ["No Show"] * 400 + ["Attended"] * 40,
@@ -82,7 +82,7 @@ def test_analyze_produces_findings_and_model():
     assert result.model.n_obs == 650
 
 
-def test_summary_tests_are_holm_corrected_as_a_family():
+def test_summary_tests_are_holm_corrected_as_a_family() -> None:
     df = _frame(
         {
             "Advertisement": ["Registered"] * 60 + ["No Show"] * 400 + ["Attended"] * 40,
@@ -99,7 +99,7 @@ def test_summary_tests_are_holm_corrected_as_a_family():
     assert "Holm-adjusted p" in result.findings[2]
 
 
-def test_summary_verdict_uses_adjusted_p():
+def test_summary_verdict_uses_adjusted_p() -> None:
     rows = []
     # Channel effect strong enough to survive correction; country varies but has no effect.
     for source, n, conv in (("Advertisement", 600, 60), ("Referral", 200, 50)):
@@ -117,6 +117,7 @@ def test_summary_verdict_uses_adjusted_p():
     result = analyze(transform(pd.DataFrame(rows)))
     channel = result.segments["channel"]
     region = result.segments["region"]
+    assert channel.summary_p_adjusted is not None and region.summary_p_adjusted is not None
     assert channel.summary_p_adjusted < 0.05
     assert region.summary_p_adjusted >= region.test.p_value_used
     assert any(
@@ -128,7 +129,7 @@ def test_summary_verdict_uses_adjusted_p():
     )
 
 
-def test_funnel_steps_by_channel_excludes_pending():
+def test_funnel_steps_by_channel_excludes_pending() -> None:
     from marketing_report.analysis import funnel_steps_by
 
     df = _frame(
@@ -149,7 +150,7 @@ def test_funnel_steps_by_channel_excludes_pending():
     assert ref["registration_ci_low"] < 1.0
 
 
-def test_recommendations_report_detectable_range():
+def test_recommendations_report_detectable_range() -> None:
     df = _frame(
         {
             "Advertisement": ["Registered"] * 50 + ["No Show"] * 450,

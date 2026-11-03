@@ -15,7 +15,7 @@ The project began as an analytics case study and has been rebuilt as a standalon
 - **Data cleaning on messy CRM exports:** validates the schema, normalises whitespace and missing values, maps free-text countries to ISO-3 codes, standardises funnel statuses and keeps one row per prospect (the furthest funnel stage wins).
 - **Sound statistics for small segments:** Wilson intervals, chi-square with Cramér's V (switching to Fisher's exact or a Monte Carlo test when expected counts are too small), Fisher's exact test with Holm correction, and a treatment-coded logistic regression with odds ratios. A channel action is recommended only where the evidence supports it, and each *Hold* states how large a difference the data could have detected.
 - **Checked against a known answer:** a [worked example](examples/channel-decision/README.md) runs one channel decision on 200 simulated exports per sample size and compares the report's intervals and actions with the generator's true rates.
-- **Packaging and tooling:** typed `src/` package, a CLI configured by flags or environment variables, Jinja2 report templates, uv for dependencies, ruff, pytest and GitHub Actions CI.
+- **Packaging and tooling:** typed `src/` package checked with `mypy --strict`, a CLI configured by flags or environment variables, Jinja2 report templates, uv for dependencies, ruff, pytest and GitHub Actions CI.
 - **No proprietary data needed:** a seeded synthetic generator produces the same 14-column schema with realistic data-quality issues, so the pipeline runs end to end without any private data.
 
 ## Quickstart
@@ -125,7 +125,7 @@ More detail: [docs/design-decisions.md](docs/design-decisions.md).
 ├── examples/synthetic/       # example report generated with the default seed
 ├── examples/channel-decision/ # worked example checked against the true rates (build.py)
 ├── docs/design-decisions.md  # methodology and trade-offs
-├── .github/workflows/ci.yml  # ruff, pytest and a CLI smoke test
+├── .github/workflows/ci.yml  # ruff, mypy, pytest and a CLI smoke test
 └── pyproject.toml / uv.lock
 ```
 
@@ -134,6 +134,7 @@ More detail: [docs/design-decisions.md](docs/design-decisions.md).
 ```bash
 uv run ruff check
 uv run ruff format --check
+uv run mypy          # strict type check of src/ and tests/
 uv run pytest
 ```
 

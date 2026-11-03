@@ -14,6 +14,7 @@ from jinja2 import Environment, PackageLoader, StrictUndefined
 from marketing_report import charts
 from marketing_report.analysis import SCENARIO_MULTIPLIERS, AnalysisResult, SegmentAnalysis
 from marketing_report.cleaning import CleaningReport
+from marketing_report.stats import as_float
 from marketing_report.validation import ValidationReport
 
 logger = logging.getLogger(__name__)
@@ -38,8 +39,9 @@ class ReportPaths:
     charts: dict[str, Path]
 
 
-def _pct(value: float) -> str:
-    return "n/a" if value != value else f"{value:.1%}"
+def _pct(value: object) -> str:
+    rate = as_float(value)
+    return "n/a" if rate != rate else f"{rate:.1%}"
 
 
 def _pvalue(value: float) -> str:

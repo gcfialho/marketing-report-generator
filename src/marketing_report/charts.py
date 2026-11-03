@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import matplotlib as mpl
 import pandas as pd
@@ -11,6 +12,9 @@ from matplotlib.ticker import PercentFormatter
 
 from marketing_report.analysis import Funnel
 
+if TYPE_CHECKING:
+    from matplotlib.typing import RcKeyType
+
 BAR = "#2a78d6"
 TEXT = "#0b0b0b"
 MUTED = "#52514e"
@@ -18,7 +22,7 @@ GRID = "#e4e3df"
 REFERENCE = "#8a8984"
 
 # Applied per chart via rc_context so importing this module never mutates global state.
-STYLE = {
+STYLE: dict[RcKeyType, object] = {
     "font.size": 10,
     "axes.edgecolor": GRID,
     "axes.labelcolor": MUTED,

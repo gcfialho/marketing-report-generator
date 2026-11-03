@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Hashable
 from dataclasses import dataclass
 
 import pandas as pd
@@ -11,6 +12,7 @@ from marketing_report import schema
 from marketing_report.stats import (
     IndependenceTest,
     LogitResult,
+    as_float,
     chi_square_independence,
     detectable_rate_range,
     holm_adjust,
@@ -176,28 +178,35 @@ def recommend_channels(segment: SegmentAnalysis, alpha: float) -> list[ChannelRe
     100%. It is a *volume* mix: the dataset has no spend, so it is not a budget split.
     """
     table, vs_rest = segment.table, segment.vs_rest
-    actions: dict[str, tuple[str, str]] = {}
+    tests = dict(vs_rest.iterrows())
+    shares: dict[Hashable, float] = {}
+    actions: dict[Hashable, tuple[str, str]] = {}
     for channel, row in table.iterrows():
-        test = vs_rest.loc[channel] if channel in vs_rest.index else None
-        if test is None or test["p_adjusted"] >= alpha:
-            p_text = f"adj. p = {test['p_adjusted']:.3f}" if test is not None else "not tested"
-            actions[channel] = (HOLD, f"No significant difference vs. other channels ({p_text})")
-        elif row["rate"] > test["rest_rate"]:
+        rate, shares[channel] = as_float(row["rate"]), as_float(row["volume_share"])
+        test = tests.get(channel)
+        if test is None:
+            actions[channel] = (HOLD, "No significant difference vs. other channels (not tested)")
+            continue
+        p_adjusted, rest_rate = as_float(test["p_adjusted"]), as_float(test["rest_rate"])
+        if p_adjusted >= alpha:
+            actions[channel] = (
+                HOLD,
+                f"No significant difference vs. other channels (adj. p = {p_adjusted:.3f})",
+            )
+        elif rate > rest_rate:
             actions[channel] = (
                 INCREASE,
-                f"Converts above other channels ({row['rate']:.1%} vs {test['rest_rate']:.1%}, "
-                f"adj. p = {test['p_adjusted']:.3f})",
+                f"Converts above other channels ({rate:.1%} vs {rest_rate:.1%}, "
+                f"adj. p = {p_adjusted:.3f})",
             )
         else:
             actions[channel] = (
                 DECREASE,
-                f"Converts below other channels ({row['rate']:.1%} vs {test['rest_rate']:.1%}, "
-                f"adj. p = {test['p_adjusted']:.3f})",
+                f"Converts below other channels ({rate:.1%} vs {rest_rate:.1%}, "
+                f"adj. p = {p_adjusted:.3f})",
             )
 
-    weights = {
-        c: table.loc[c, "volume_share"] * SCENARIO_MULTIPLIERS[a] for c, (a, _) in actions.items()
-    }
+    weights = {c: shares[c] * SCENARIO_MULTIPLIERS[a] for c, (a, _) in actions.items()}
     total_weight = sum(weights.values())
 
     # Holm's strictest step is alpha / m, so a channel can only be flagged on its own
@@ -217,8 +226,8 @@ def recommend_channels(segment: SegmentAnalysis, alpha: float) -> list[ChannelRe
             channel=str(channel),
             action=action,
             rationale=rationale,
-            current_share=float(table.loc[channel, "volume_share"]),
-            scenario_share=float(weights[channel] / total_weight) if total_weight else 0.0,
+            current_share=shares[channel],
+            scenario_share=weights[channel] / total_weight if total_weight else 0.0,
             detectable_low=detectable[channel][0],
             detectable_high=detectable[channel][1],
         )

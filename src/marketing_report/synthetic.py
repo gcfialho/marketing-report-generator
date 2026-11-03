@@ -166,8 +166,8 @@ def generate(n_rows: int = 1000, seed: int = 42, messy: bool = True) -> pd.DataF
             statuses.append(schema.ATTENDED)
 
     start = pd.Timestamp("2023-01-15 06:11")
-    opt_in_ts = start + pd.to_timedelta(rng.integers(0, 320, size=n_rows), unit="D")
-    opt_in_ts = pd.Series(opt_in_ts).where(rng.random(n_rows) >= 0.046)
+    opt_in_dates = start + pd.to_timedelta(rng.integers(0, 320, size=n_rows), unit="D")
+    opt_in_ts = pd.Series(opt_in_dates).where(rng.random(n_rows) >= 0.046)
     opt_out_mask = rng.random(n_rows) < 0.03
     opt_out_ts = pd.Series(pd.NaT, index=range(n_rows), dtype="datetime64[ns]")
     opt_out_base = opt_in_ts.fillna(start)

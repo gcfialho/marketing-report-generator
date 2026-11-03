@@ -6,7 +6,7 @@ import pytest
 from marketing_report import schema
 
 
-def make_raw(rows: list[dict]) -> pd.DataFrame:
+def make_raw(rows: list[dict[str, str]]) -> pd.DataFrame:
     """Build a raw frame with the full schema; unspecified columns are missing."""
     return pd.DataFrame(rows, columns=list(schema.ALL_COLUMNS))
 
