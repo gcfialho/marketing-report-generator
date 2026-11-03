@@ -130,6 +130,8 @@ holding the other variables fixed.
 
 McFadden pseudo-R² = 0.024; likelihood-ratio test against the
 intercept-only model: p = 0.036.
+Term p-values are not adjusted for the 8 terms tested, so a single small
+p-value here is a lead to check, not a finding on its own.
 
 Excluded from the model because they are too small or have no variation in the outcome
 (maximum likelihood cannot estimate them): Prospect Source: Social Media.

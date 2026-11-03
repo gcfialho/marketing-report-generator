@@ -92,6 +92,8 @@ holding the other variables fixed.
 
 McFadden pseudo-R² = {{ "%.3f" | format(a.model.pseudo_r2) }}; likelihood-ratio test against the
 intercept-only model: p = {{ a.model.llr_p_value | pvalue }}.
+Term p-values are not adjusted for the {{ a.model.terms | length }} terms tested, so a single small
+p-value here is a lead to check, not a finding on its own.
 {% if a.model.excluded_levels %}
 
 Excluded from the model because they are too small or have no variation in the outcome
