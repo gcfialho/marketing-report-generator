@@ -23,6 +23,22 @@ from marketing_report.transform import (
         ("Head of Analytics", "Decision Maker"),
         ("Social Media", "Other"),
         (None, "Other"),
+        # Regressions: 'svp' is not the word 'vp', so SVPs used to fall into "Other".
+        ("SVP Operations", "Executive"),
+        ("EVP, Sales", "Executive"),
+        # Executive keywords inside non-executive phrases.
+        ("Product Owner", "Practitioner"),
+        ("Partner Marketing Manager", "Decision Maker"),
+        ("Board Certified Analyst", "Practitioner"),
+        ("Managing Partner", "Executive"),
+        # 'Lead' on an individual-contributor title is seniority, not management.
+        ("Lead Data Analyst", "Practitioner"),
+        ("Lead Business Analyst", "Practitioner"),
+        ("Enterprise Analytics & Automation Lead", "Decision Maker"),
+        ("Data Engineer & Team Lead Consultant", "Decision Maker"),
+        ("Team Leader Provider Reimbursement Analytics", "Decision Maker"),
+        ("Account Executive", "Practitioner"),
+        ("Data & Analytics Senior Architect", "Practitioner"),
     ],
 )
 def test_categorize_job_title(title, expected):
@@ -36,6 +52,10 @@ def test_categorize_job_title(title, expected):
         ("Junior Analyst", "Junior"),
         ("Data Analyst", "Mid-Level"),
         ("Strategist", "Mid-Level"),  # contains 'sr'-like letters but not the word 'sr'
+        ("Lead Data Analyst", "Senior"),
+        ("CTO", "Senior"),  # executives used to be labelled Mid-Level
+        ("SVP Operations", "Senior"),
+        ("Product Owner", "Mid-Level"),
     ],
 )
 def test_seniority_level(title, expected):
