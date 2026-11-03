@@ -22,3 +22,20 @@ def test_synthetic_example_is_up_to_date(tmp_path):
         "SOURCE_DATE_EPOCH=$(date +%s) uv run marketing-report run "
         "--output-dir examples/synthetic --no-clean-export"
     )
+
+
+def test_channel_decision_example_builds(tmp_path):
+    import subprocess
+    import sys
+
+    script = EXAMPLE.parent / "channel-decision" / "build.py"
+    subprocess.run(
+        [sys.executable, str(script), "--runs", "2", "--out", str(tmp_path)],
+        check=True,
+        capture_output=True,
+    )
+    readme = (tmp_path / "README.md").read_text(encoding="utf-8")
+    assert readme.startswith("# Worked example")
+    assert "{" not in readme.replace("```", "")  # no unformatted placeholders
+    for name in ("estimates_vs_truth.png", "detection_by_sample_size.png", "simulation.csv"):
+        assert (tmp_path / name).stat().st_size > 0
