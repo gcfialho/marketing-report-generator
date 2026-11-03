@@ -33,45 +33,68 @@ STYLE = {
 
 
 def funnel_chart(funnel: Funnel, path: Path) -> Path:
+    """Cumulative funnel with each stage's conversion from the stage above it.
+
+    "Demo outcome recorded" is drawn as its own stage because the attendance rate is
+    measured against it, not against all prospects. The weakest step is named in the title.
+    """
+    outcome_known = funnel.attended + funnel.no_show
     stages = [
-        ("Responded (all prospects)", funnel.total),
-        ("Attended demo", funnel.attended),
-        ("Registered for trial", funnel.registered),
+        ("All prospects", funnel.total, None),
+        ("Demo outcome recorded", outcome_known, funnel.total),
+        ("Attended demo", funnel.attended, outcome_known),
+        ("Registered for trial", funnel.registered, funnel.attended),
     ]
-    labels = [s for s, _ in stages][::-1]
-    values = [v for _, v in stages][::-1]
+    bottleneck = funnel.bottleneck
+    labels = [s for s, _, _ in stages][::-1]
+    values = [v for _, v, _ in stages][::-1]
+    bases = [b for _, _, b in stages][::-1]
 
     with mpl.rc_context(STYLE):
-        fig = Figure(figsize=(7, 2.4))
+        fig = Figure(figsize=(7, 2.9))
         ax = fig.subplots()
-        ax.barh(labels, values, color=BAR, height=0.55)
-        for y, value in enumerate(values):
-            share = value / funnel.total if funnel.total else 0
-            ax.text(value, y, f"  {value:,} ({share:.1%})", va="center", color=TEXT)
-        ax.set_xlim(0, max(values) * 1.3 if values else 1)
+        ax.barh(labels, values, color=BAR, height=0.6)
+        for y, (value, base) in enumerate(zip(values, bases, strict=True)):
+            text = f"  {value:,}"
+            if base:
+                text += f"   {value / base:.1%} of the stage above"
+            ax.text(value, y, text, va="center", color=TEXT, fontsize=9)
+        ax.set_xlim(0, max(values) * 1.6 if values else 1)
         ax.xaxis.set_visible(False)
         ax.spines["bottom"].set_visible(False)
-        ax.set_title("Prospect funnel (cumulative stages)", loc="left", color=TEXT, fontsize=11)
+        ax.set_title(
+            f"Weakest step: {bottleneck.name.split(' (')[0].lower()} "
+            f"({bottleneck.rate:.1%}, {bottleneck.numerator:,} of {bottleneck.denominator:,})",
+            loc="left",
+            color=TEXT,
+            fontsize=11,
+        )
         fig.savefig(path)
     return path
 
 
 def rate_chart(table: pd.DataFrame, title: str, overall_rate: float, path: Path) -> Path:
-    """Horizontal conversion-rate bars with 95% Wilson intervals and an overall reference."""
+    """Dot-and-interval plot of conversion rates with 95% Wilson intervals.
+
+    Points with interval lines (rather than bars) keep the reader's eye on the range of
+    plausible rates, which is what matters for small segments.
+    """
     data = table.sort_values("rate")
     labels = [
         f"{idx}  (n={int(n):,})" for idx, n in zip(data.index, data["prospects"], strict=True)
     ]
     rates = data["rate"].to_numpy()
-    err = [rates - data["ci_low"].to_numpy(), data["ci_high"].to_numpy() - rates]
+    y = range(len(data))
 
     with mpl.rc_context(STYLE):
-        fig = Figure(figsize=(7, 0.45 * len(data) + 1.2))
+        fig = Figure(figsize=(7, 0.42 * len(data) + 1.3))
         ax = fig.subplots()
-        ax.barh(labels, rates, color=BAR, height=0.55)
-        ax.errorbar(
-            rates, range(len(data)), xerr=err, fmt="none", ecolor=TEXT, elinewidth=1, capsize=3
+        ax.hlines(y, data["ci_low"], data["ci_high"], color=BAR, linewidth=2, clip_on=False)
+        ax.plot(
+            rates, y, "o", color=BAR, markersize=7, markeredgecolor="white", zorder=3, clip_on=False
         )
+        for yi, (rate, high) in enumerate(zip(rates, data["ci_high"], strict=True)):
+            ax.text(high, yi, f"  {rate:.1%}", va="center", color=TEXT, fontsize=8.5)
         ax.axvline(
             overall_rate,
             color=REFERENCE,
@@ -79,11 +102,14 @@ def rate_chart(table: pd.DataFrame, title: str, overall_rate: float, path: Path)
             linewidth=1,
             label=f"Overall rate ({overall_rate:.1%})",
         )
+        ax.set_yticks(list(y), labels)
+        ax.set_ylim(-0.6, len(data) - 0.4)
+        ax.set_xlim(0, min(1.0, float(data["ci_high"].max()) * 1.15 + 0.02))
         ax.legend(loc="lower right", frameon=False, fontsize=8, labelcolor=MUTED)
         ax.xaxis.set_major_formatter(PercentFormatter(1.0, decimals=0))
         ax.grid(axis="x", color=GRID, linewidth=0.6)
         ax.set_axisbelow(True)
-        ax.set_xlabel("Trial registration rate (whiskers: 95% Wilson CI)")
+        ax.set_xlabel("Trial registration rate (dot: observed; line: 95% Wilson interval)")
         ax.set_title(title, loc="left", color=TEXT, fontsize=11)
         fig.savefig(path)
     return path
