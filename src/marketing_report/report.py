@@ -13,7 +13,6 @@ from jinja2 import Environment, PackageLoader, StrictUndefined
 from marketing_report import charts
 from marketing_report.analysis import SCENARIO_MULTIPLIERS, AnalysisResult, SegmentAnalysis
 from marketing_report.cleaning import CleaningReport
-from marketing_report.stats import IndependenceTest
 from marketing_report.validation import ValidationReport
 
 logger = logging.getLogger(__name__)
@@ -64,7 +63,8 @@ def segment_table(segment: SegmentAnalysis) -> str:
     return "\n".join([header, *rows])
 
 
-def test_line(test: IndependenceTest) -> str:
+def test_line(segment: SegmentAnalysis) -> str:
+    test = segment.test
     if test.p_value != test.p_value:
         return "*Chi-square test not applicable (fewer than two levels).*"
     line = (
@@ -77,7 +77,17 @@ def test_line(test: IndependenceTest) -> str:
         line += (
             f" Caution: smallest expected count is {test.min_expected:.1f} and "
             f"{test.low_expected_share:.0%} of cells are below 5, so the chi-square "
-            "approximation is unreliable; rely on the exact per-segment tests."
+            "approximation is unreliable."
+        )
+        if test.monte_carlo_p_value is not None:
+            line += (
+                " Monte Carlo test with fixed margins (9,999 simulated tables): "
+                f"p = {_pvalue(test.monte_carlo_p_value)}."
+            )
+    if segment.summary_p_adjusted is not None:
+        line += (
+            " Holm-adjusted across the channel, job category and region tests: "
+            f"p = {_pvalue(segment.summary_p_adjusted)}."
         )
     return f"*{line}*"
 

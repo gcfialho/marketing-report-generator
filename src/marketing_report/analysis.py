@@ -12,6 +12,7 @@ from marketing_report.stats import (
     IndependenceTest,
     LogitResult,
     chi_square_independence,
+    holm_adjust,
     logistic_regression,
     rate_table,
     segment_vs_rest,
@@ -27,6 +28,12 @@ SEGMENTS: dict[str, str] = {
     "seniority": schema.SENIORITY,
 }
 MODEL_PREDICTORS = (schema.SOURCE, schema.REGION, schema.JOB_CATEGORY)
+# Segment tests summarised in the executive summary. They are Holm-corrected as one family.
+SUMMARY_SEGMENTS: dict[str, str] = {
+    "channel": "channel",
+    "job_category": "job category",
+    "region": "region",
+}
 
 INCREASE, DECREASE, HOLD = "Increase", "Decrease", "Hold"
 SCENARIO_MULTIPLIERS = {INCREASE: 1.25, DECREASE: 0.75, HOLD: 1.0}
@@ -69,6 +76,8 @@ class SegmentAnalysis:
     table: pd.DataFrame
     test: IndependenceTest
     vs_rest: pd.DataFrame
+    # Holm-adjusted p-value across the executive-summary family (None if not in the family).
+    summary_p_adjusted: float | None = None
 
 
 @dataclass
@@ -171,12 +180,24 @@ def _segment_findings(segment: SegmentAnalysis, alpha: float, label: str) -> lis
     findings = []
     test = segment.test
     if test.p_value == test.p_value:  # not NaN
-        verdict = "differ significantly" if test.p_value < alpha else "do not differ significantly"
-        caveat = "" if test.assumptions_ok else " (some expected counts < 5; interpret with care)"
+        p_used = test.p_value_used
+        p_adj = segment.summary_p_adjusted if segment.summary_p_adjusted is not None else p_used
+        verdict = "differ significantly" if p_adj < alpha else "do not differ significantly"
+        if test.assumptions_ok:
+            p_text = f"chi-square = {test.chi2:.2f}, df = {test.dof}, p = {p_used:.3f}"
+        elif test.fisher_p_value is not None:
+            p_text = f"Fisher's exact p = {p_used:.3f}; expected counts too small for chi-square"
+        else:
+            p_text = (
+                f"Monte Carlo chi-square p = {p_used:.3f}; expected counts too small for the "
+                "asymptotic test"
+            )
+        adj_text = (
+            f", Holm-adjusted p = {p_adj:.3f}" if segment.summary_p_adjusted is not None else ""
+        )
         findings.append(
             f"Conversion rates by {label} {verdict} "
-            f"(chi-square = {test.chi2:.2f}, df = {test.dof}, p = {test.p_value:.3f}, "
-            f"Cramér's V = {test.cramers_v:.2f}){caveat}."
+            f"({p_text}{adj_text}, Cramér's V = {test.cramers_v:.2f})."
         )
     significant = segment.vs_rest[segment.vs_rest["p_adjusted"] < alpha]
     for level, row in significant.iterrows():
@@ -189,6 +210,18 @@ def _segment_findings(segment: SegmentAnalysis, alpha: float, label: str) -> lis
     return findings
 
 
+def _adjust_summary_family(segments: dict[str, SegmentAnalysis]) -> None:
+    """Holm-correct the omnibus tests reported in the executive summary as one family."""
+    names = [
+        n
+        for n in SUMMARY_SEGMENTS
+        if n in segments and segments[n].test.p_value_used == segments[n].test.p_value_used
+    ]
+    adjusted = holm_adjust([segments[n].test.p_value_used for n in names])
+    for name, p_adj in zip(names, adjusted, strict=True):
+        segments[name].summary_p_adjusted = p_adj
+
+
 def analyze(df: pd.DataFrame, alpha: float = 0.05) -> AnalysisResult:
     """Run the full analysis on a transformed prospect-level frame."""
     funnel = analyze_funnel(df)
@@ -197,6 +230,7 @@ def analyze(df: pd.DataFrame, alpha: float = 0.05) -> AnalysisResult:
         for name, column in SEGMENTS.items()
         if column in df.columns
     }
+    _adjust_summary_family(segments)
     model = logistic_regression(df, schema.IS_REGISTERED, list(MODEL_PREDICTORS))
     recommendations = recommend_channels(segments["channel"], alpha)
 
@@ -207,8 +241,7 @@ def analyze(df: pd.DataFrame, alpha: float = 0.05) -> AnalysisResult:
         f"Weakest funnel step: {bottleneck.name} at {bottleneck.rate:.1%} "
         f"({bottleneck.numerator:,} of {bottleneck.denominator:,}).",
     ]
-    for name, label in (("channel", "channel"), ("job_category", "job category"),
-                        ("region", "region")):  # fmt: skip
+    for name, label in SUMMARY_SEGMENTS.items():
         if name in segments:
             findings.extend(_segment_findings(segments[name], alpha, label))
 

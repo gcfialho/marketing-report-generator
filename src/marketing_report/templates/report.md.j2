@@ -45,7 +45,7 @@ excluded from the attendance-rate base.
 
 ![Channel conversion]({{ charts.channel }})
 
-{{ test_line(a.segments.channel.test) }}
+{{ test_line(a.segments.channel) }}
 
 ## 3. Audience and geography
 
@@ -55,19 +55,19 @@ excluded from the attendance-rate base.
 
 ![Job category conversion]({{ charts.job_category }})
 
-{{ test_line(a.segments.job_category.test) }}
+{{ test_line(a.segments.job_category) }}
 
 ### Region
 
 {{ segment_table(a.segments.region) }}
 
-{{ test_line(a.segments.region.test) }}
+{{ test_line(a.segments.region) }}
 
 ### Country
 
 {{ segment_table(a.segments.country) }}
 
-{{ test_line(a.segments.country.test) }}
+{{ test_line(a.segments.country) }}
 
 ## 4. Multivariable logistic regression
 
@@ -138,8 +138,10 @@ Cleaning steps:
 
 - Rates use 95% Wilson score intervals, which remain valid for small segments and rates near 0%.
 - Segment differences are tested with a chi-square test of independence on the
-  segment × registered table, with Cramér's V as effect size. Results are flagged when expected
-  counts are too small for the chi-square approximation.
+  segment × registered table, with Cramér's V as effect size. When expected counts are too small
+  for the chi-square approximation, the verdict uses Fisher's exact test (two levels) or a Monte
+  Carlo test with fixed margins (more levels). The channel, job category and region tests in the
+  executive summary are Holm-corrected as one family.
 - Per-segment comparisons use Fisher's exact test (segment vs. all others) with Holm correction
   for multiple comparisons.
 - The logistic regression uses one-hot (treatment) coding; odds ratios are associations, not

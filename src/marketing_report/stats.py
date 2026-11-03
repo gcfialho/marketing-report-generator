@@ -56,11 +56,43 @@ class IndependenceTest:
     min_expected: float
     low_expected_share: float
     fisher_p_value: float | None = None
+    monte_carlo_p_value: float | None = None
 
     @property
     def assumptions_ok(self) -> bool:
         """Cochran's rule: no expected count < 1 and at most 20% of cells below 5."""
         return self.min_expected >= 1 and self.low_expected_share <= 0.2
+
+    @property
+    def p_value_used(self) -> float:
+        """The p-value to act on: exact (2x2) or Monte Carlo when the chi-square
+        approximation is unreliable, otherwise the asymptotic chi-square p-value."""
+        if self.assumptions_ok:
+            return self.p_value
+        if self.fisher_p_value is not None:
+            return self.fisher_p_value
+        if self.monte_carlo_p_value is not None:
+            return self.monte_carlo_p_value
+        return self.p_value
+
+
+def monte_carlo_chi_square_p(table: np.ndarray, n_resamples: int = 9999, seed: int = 0) -> float:
+    """Chi-square p-value from tables simulated with the observed margins fixed.
+
+    Tables are drawn with Patefield's algorithm (``scipy.stats.random_table``), which is
+    the conditional null distribution used by Fisher's exact test, so the result stays
+    valid when expected counts are too small for the asymptotic chi-square distribution.
+    The seed makes the p-value reproducible.
+    """
+    observed = np.asarray(table, dtype=float)
+    rows, cols = observed.sum(axis=1), observed.sum(axis=0)
+    expected = np.outer(rows, cols) / observed.sum()
+    statistic = ((observed - expected) ** 2 / expected).sum()
+    sims = sps.random_table(rows.astype(int), cols.astype(int), seed=seed).rvs(size=n_resamples)
+    simulated = ((sims - expected) ** 2 / expected).sum(axis=(1, 2))
+    # Small tolerance so floating-point noise does not drop ties with the observed table.
+    exceed = int((simulated >= statistic - 1e-9 * max(1.0, statistic)).sum())
+    return (1 + exceed) / (n_resamples + 1)
 
 
 def chi_square_independence(df: pd.DataFrame, variable: str, target: str) -> IndependenceTest:
@@ -82,15 +114,22 @@ def chi_square_independence(df: pd.DataFrame, variable: str, target: str) -> Ind
     if table.shape == (2, 2):
         fisher_p = float(sps.fisher_exact(table.to_numpy()).pvalue)
 
+    min_expected = float(expected.min())
+    low_share = float((expected < 5).mean())
+    monte_carlo_p = None
+    if fisher_p is None and not (min_expected >= 1 and low_share <= 0.2):
+        monte_carlo_p = monte_carlo_chi_square_p(table.to_numpy())
+
     return IndependenceTest(
         variable=variable,
         chi2=float(result.statistic),
         p_value=float(result.pvalue),
         dof=int(result.dof),
         cramers_v=cramers_v,
-        min_expected=float(expected.min()),
-        low_expected_share=float((expected < 5).mean()),
+        min_expected=min_expected,
+        low_expected_share=low_share,
         fisher_p_value=fisher_p,
+        monte_carlo_p_value=monte_carlo_p,
     )
 
 

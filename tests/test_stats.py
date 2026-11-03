@@ -86,3 +86,37 @@ def test_logistic_regression_recovers_direction_and_excludes_sparse_levels():
     assert referral.ci_low > 1
     assert referral.p_value < 0.001
     assert result.n_obs == n
+
+
+def test_monte_carlo_p_matches_asymptotic_p_on_large_table():
+    from scipy import stats as sps
+
+    from marketing_report.stats import monte_carlo_chi_square_p
+
+    table = np.array([[120, 880], [150, 850], [95, 905]])
+    asymptotic = sps.chi2_contingency(table, correction=False).pvalue
+    assert monte_carlo_chi_square_p(table) == pytest.approx(asymptotic, abs=0.01)
+    # Seeded, so the report is reproducible.
+    assert monte_carlo_chi_square_p(table) == monte_carlo_chi_square_p(table)
+
+
+def test_small_expected_counts_switch_to_monte_carlo_p():
+    # 4 x 2 table with a tiny zero-conversion segment: chi-square approximation fails.
+    df = pd.DataFrame(
+        {
+            "seg": ["a"] * 120 + ["b"] * 30 + ["c"] * 800 + ["d"] * 20,
+            "y": [1] * 20 + [0] * 100 + [1] * 5 + [0] * 25 + [1] * 80 + [0] * 720 + [0] * 20,
+        }
+    )
+    test = chi_square_independence(df, "seg", "y")
+    assert not test.assumptions_ok
+    assert test.monte_carlo_p_value is not None
+    assert test.p_value_used == test.monte_carlo_p_value
+    assert 0 < test.monte_carlo_p_value <= 1
+
+
+def test_two_by_two_with_small_counts_uses_fisher():
+    df = pd.DataFrame({"seg": ["a"] * 6 + ["b"] * 6, "y": [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1]})
+    test = chi_square_independence(df, "seg", "y")
+    assert test.monte_carlo_p_value is None
+    assert test.p_value_used == test.fisher_p_value

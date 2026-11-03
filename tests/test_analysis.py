@@ -80,3 +80,47 @@ def test_analyze_produces_findings_and_model():
     assert set(result.segments) >= {"channel", "country", "job_category", "region"}
     assert result.model is not None
     assert result.model.n_obs == 650
+
+
+def test_summary_tests_are_holm_corrected_as_a_family():
+    df = _frame(
+        {
+            "Advertisement": ["Registered"] * 60 + ["No Show"] * 400 + ["Attended"] * 40,
+            "Trade Show": ["Registered"] * 15 + ["No Show"] * 70 + ["Attended"] * 15,
+            "Referral": ["Registered"] * 20 + ["No Show"] * 25 + ["Attended"] * 5,
+        }
+    )
+    result = analyze(df)
+    family = [result.segments[n] for n in ("channel", "job_category", "region")]
+    # Job category and region have a single level here, so only the channel test is in
+    # the family and its adjusted p equals the raw p.
+    assert family[0].summary_p_adjusted == pytest.approx(family[0].test.p_value_used)
+    assert all(s.summary_p_adjusted is None for s in family[1:])
+    assert "Holm-adjusted p" in result.findings[2]
+
+
+def test_summary_verdict_uses_adjusted_p():
+    rows = []
+    # Channel effect strong enough to survive correction; country varies but has no effect.
+    for source, n, conv in (("Advertisement", 600, 60), ("Referral", 200, 50)):
+        for i in range(n):
+            rows.append(
+                {
+                    schema.STATUS: "Registered" if i < conv else "No Show",
+                    schema.SOURCE: source,
+                    schema.COUNTRY: ("USA", "GBR", "BRA", "JPN")[i % 4],
+                    schema.JOB_TITLE: ("Data Analyst", "IT Manager")[i % 2],
+                }
+            )
+    result = analyze(transform(pd.DataFrame(rows)))
+    channel = result.segments["channel"]
+    region = result.segments["region"]
+    assert channel.summary_p_adjusted < 0.05
+    assert region.summary_p_adjusted >= region.test.p_value_used
+    assert any(
+        f.startswith("Conversion rates by channel differ significantly") for f in result.findings
+    )
+    assert any(
+        f.startswith("Conversion rates by region do not differ significantly")
+        for f in result.findings
+    )
